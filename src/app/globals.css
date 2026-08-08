@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/* =========================================================================
+   NyayAI design tokens — quiet, premium, legal-grade.
+   Warm white / deep navy / slate. Green = verified, amber = interpretation,
+   red = critical only.
+   ========================================================================= */
+
+@theme {
+  /* Warm white surfaces */
+  --color-paper: #faf9f6;
+  --color-paper-warm: #f4f2ec;
+  --color-card: #ffffff;
+
+  /* Deep navy — primary brand */
+  --color-navy-950: #0a1a2f;
+  --color-navy-900: #0d2240;
+  --color-navy-800: #123055;
+  --color-navy-700: #1a3f6d;
+  --color-navy-600: #23518a;
+  --color-navy-100: #e6ecf5;
+
+  /* Slate neutrals */
+  --color-ink-900: #1a2432;
+  --color-ink-700: #334155;
+  --color-ink-500: #64748b;
+  --color-ink-400: #94a3b8;
+  --color-ink-200: #e2e8f0;
+  --color-ink-100: #eef1f5;
+
+  /* Verified / safe */
+  --color-verified-700: #1f6b45;
+  --color-verified-600: #2a8057;
+  --color-verified-100: #e3f2ea;
+
+  /* Interpretation */
+  --color-amber-600: #b45309;
+  --color-amber-700: #92400e;
+  --color-amber-100: #fdf0dc;
+
+  /* Critical */
+  --color-critical-600: #b91c1c;
+  --color-critical-100: #fdeaea;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-navy-100);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .font-serif-display {
+    font-family: "Georgia", "Times New Roman", serif;
+    letter-spacing: -0.01em;
+  }
+}
