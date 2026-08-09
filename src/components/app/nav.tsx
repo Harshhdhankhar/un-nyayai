@@ -1,42 +1,46 @@
-import Link from "next/link";
 import {
-  FolderKanban,
-  MessageSquare,
+  BookOpenText,
+  CircleHelp,
+  Files,
+  FolderOpen,
+  Home,
   Landmark,
-  ShieldQuestion,
-  HeartHandshake,
-  GitCompareArrows,
-  Settings,
+  MessageSquareText,
   Search,
+  Settings,
   Scale,
 } from "lucide-react";
 
 export interface NavItem {
   href: string;
   label: string;
+  shortLabel?: string;
   icon: typeof Scale;
 }
 
-const citizenNav: NavItem[] = [
-  { href: "/app", label: "Overview", icon: FolderKanban },
-  { href: "/app/assistant", label: "Ask NyayAI", icon: MessageSquare },
-  { href: "/app/matters", label: "My matters", icon: FolderKanban },
-  { href: "/app/case-status", label: "Check a case", icon: Landmark },
-  { href: "/app/rights", label: "Know my rights", icon: ShieldQuestion },
-  { href: "/app/legal-aid", label: "Free legal aid", icon: HeartHandshake },
-  { href: "/app/law-compare", label: "Old vs new law", icon: GitCompareArrows },
-  { href: "/app/settings", label: "Settings", icon: Settings },
-];
-
-const advocateNav: NavItem[] = [
-  { href: "/app", label: "Overview", icon: FolderKanban },
-  { href: "/app/matters", label: "Matters", icon: FolderKanban },
+export const primaryNav: NavItem[] = [
+  { href: "/app", label: "Overview", shortLabel: "Home", icon: Home },
+  { href: "/app/matters", label: "Matters", icon: FolderOpen },
   { href: "/app/research", label: "Research", icon: Search },
-  { href: "/app/case-status", label: "Case status", icon: Landmark },
-  { href: "/app/law-compare", label: "Law compare", icon: GitCompareArrows },
+  { href: "/app/case-status", label: "Cases", icon: Landmark },
+  { href: "/app/documents", label: "Documents", icon: Files },
+  { href: "/app/legal-aid", label: "Legal help", icon: CircleHelp },
+];
+
+export const secondaryNav: NavItem[] = [
+  { href: "/app/assistant", label: "Ask NyayAI", shortLabel: "Ask", icon: MessageSquareText },
+  { href: "/app/rights", label: "Know your rights", icon: BookOpenText },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
 
-export function navForRole(role: string): NavItem[] {
-  return role === "advocate" ? advocateNav : citizenNav;
+export const mobileNav: NavItem[] = [
+  primaryNav[0],
+  primaryNav[1],
+  secondaryNav[0],
+  primaryNav[3],
+  { href: "/app/menu", label: "More", icon: Scale },
+];
+
+export function navForRole(): NavItem[] {
+  return primaryNav;
 }

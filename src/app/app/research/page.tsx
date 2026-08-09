@@ -1,20 +1,2 @@
 import { CaseLawSearch } from "@/components/research/case-law-search";
-
-export const metadata = { title: "Research" };
-
-export default function ResearchPage() {
-  return (
-    <div className="mx-auto w-full max-w-3xl space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-navy-950">
-          Case-law research
-        </h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Search judgments and statutes. Results are marked as live or mock so
-          you always know what to trust.
-        </p>
-      </div>
-      <CaseLawSearch />
-    </div>
-  );
-}
+export default function ResearchPage() { return <div className="workspace-page"><header className="max-w-3xl"><p className="eyebrow text-navy-700">Indian legal research</p><h1 className="mt-3 font-serif-display text-4xl text-navy-950 sm:text-5xl">Find the law behind the issue.</h1><p className="mt-3 text-sm leading-6 text-ink-600">Search judgments and legal records. Source provenance stays visible from result to reader.</p></header><div className="mt-8"><CaseLawSearch /></div></div>; }

@@ -48,6 +48,11 @@ export function RightsExplorer() {
 
   return (
     <div className="space-y-5">
+      <div className="flex flex-wrap gap-2">
+        {["Police", "Work", "Housing", "Consumer", "Cyber", "Family", "Property", "Money", "Court"].map((situation) => (
+          <button key={situation} type="button" onClick={() => setStatement(`${situation} problem: `)} className="border border-ink-200 bg-white px-3 py-2 text-xs font-semibold text-ink-600 hover:border-navy-700 hover:text-navy-950">{situation}</button>
+        ))}
+      </div>
       <div className="space-y-2">
         <Label htmlFor="situation">What happened?</Label>
         <Textarea

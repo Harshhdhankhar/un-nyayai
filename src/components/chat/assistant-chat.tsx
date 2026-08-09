@@ -10,7 +10,6 @@ import {
   MessageSquare,
   Plus,
   Trash2,
-  Sparkles,
   Scale,
   Gavel,
   Scroll,
@@ -21,8 +20,6 @@ import {
   BookOpen,
   Landmark,
   CornerDownLeft,
-  Bot,
-  User,
   Pause,
   ChevronLeft,
   ChevronRight,
@@ -150,6 +147,8 @@ export function AssistantChat({
   }, []);
 
   useEffect(() => {
+    // Initial remote synchronization is intentionally performed after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadThreads();
   }, [loadThreads]);
 
@@ -447,7 +446,7 @@ export function AssistantChat({
       </aside>
 
       {/* Main chat column */}
-      <div className="flex min-w-0 flex-1 flex-col rounded-2xl border border-ink-200 bg-white shadow-sm">
+        <div className="flex min-w-0 flex-1 flex-col border border-ink-200 bg-white">
         {/* Toolbar */}
         <div className="flex items-center gap-2 border-b border-ink-100 px-4 py-3">
           <button
@@ -540,11 +539,9 @@ export function AssistantChat({
 
             {!loadingThread && messages.length === 0 && !isStreaming && (
               <div className="flex flex-col items-center px-4 pt-16 text-center">
-                <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-navy-900 shadow-lg shadow-navy-900/20">
-                  <Sparkles className="h-6 w-6 text-white" />
-                </div>
-                <h2 className="text-lg font-semibold tracking-tight text-ink-900">
-                  How can we help you today?
+                <p className="eyebrow text-navy-700">Structured legal guidance</p>
+                <h2 className="mt-3 font-serif-display text-3xl text-navy-950">
+                  What do you need to understand?
                 </h2>
                 <p className="mt-1 max-w-md text-sm text-ink-500">
                   Describe what happened in your own words — no legal
@@ -558,9 +555,9 @@ export function AssistantChat({
                       key={s.label}
                       type="button"
                       onClick={() => send(s.prompt)}
-                      className="group flex items-start gap-3 rounded-xl border border-ink-200 bg-white p-3.5 text-left transition-all hover:border-navy-300 hover:shadow-md hover:shadow-navy-900/5"
+                      className="group flex items-start gap-3 border border-ink-200 bg-white p-3.5 text-left transition-colors hover:border-navy-700"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-navy-100 text-navy-800 transition-colors group-hover:bg-navy-900 group-hover:text-white">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-navy-100 bg-navy-100 text-navy-800 transition-colors group-hover:bg-navy-900 group-hover:text-white">
                         <s.icon className="h-4 w-4" />
                       </span>
                       <span>
@@ -582,11 +579,7 @@ export function AssistantChat({
                 key={msg.id}
                 className={cn("flex gap-3", msg.role === "user" && "justify-end")}
               >
-                {msg.role === "assistant" && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-navy-900 shadow-sm shadow-navy-900/20">
-                    <Bot className="h-4 w-4 text-white" />
-                  </div>
-                )}
+                {msg.role === "assistant" && <span className="mt-1 w-8 shrink-0 text-[9px] font-bold uppercase tracking-[0.12em] text-navy-700">NyayAI</span>}
                 <div
                   className={cn(
                     "min-w-0 space-y-2",
@@ -595,10 +588,10 @@ export function AssistantChat({
                 >
                   <div
                     className={cn(
-                      "rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                    "px-4 py-3 text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "rounded-tr-sm bg-navy-900 text-white shadow-sm shadow-navy-900/10"
-                        : "rounded-tl-sm border border-ink-200 bg-paper text-ink-900"
+                        ? "border-l-2 border-navy-900 bg-paper-warm text-ink-800"
+                        : "border-y border-ink-200 bg-white text-ink-900"
                     )}
                   >
                     {msg.role === "user" ? (
@@ -656,11 +649,7 @@ export function AssistantChat({
                     <SourceList sources={msg.sources} />
                   )}
                 </div>
-                {msg.role === "user" && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-ink-100">
-                    <User className="h-4 w-4 text-ink-500" />
-                  </div>
-                )}
+                {msg.role === "user" && <span className="mt-1 w-8 shrink-0 text-right text-[9px] font-bold uppercase tracking-[0.12em] text-ink-400">You</span>}
               </div>
             ))}
             <div ref={bottomRef} />
@@ -671,7 +660,7 @@ export function AssistantChat({
         <div className="border-t border-ink-100 p-4">
           <div className="mx-auto max-w-3xl">
             <form
-              className="flex items-end gap-2 rounded-2xl border border-ink-200 bg-white p-2 pl-4 shadow-sm transition-colors focus-within:border-navy-400 focus-within:ring-4 focus-within:ring-navy-100"
+              className="flex items-end gap-2 border border-ink-300 bg-white p-2 pl-4 transition-colors focus-within:border-navy-700 focus-within:ring-2 focus-within:ring-navy-100"
               onSubmit={(e) => {
                 e.preventDefault();
                 send(input);
@@ -696,7 +685,7 @@ export function AssistantChat({
                   onClick={stopGeneration}
                   aria-label="Stop generating"
                   title="Stop generating"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-critical-600 text-white transition-colors hover:bg-red-700"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center bg-critical-600 text-white transition-colors hover:bg-red-700"
                 >
                   <Pause className="h-4 w-4" />
                 </button>
@@ -705,7 +694,7 @@ export function AssistantChat({
                   type="submit"
                   disabled={!input.trim()}
                   aria-label="Send"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-navy-900 text-white transition-colors hover:bg-navy-800 disabled:bg-ink-200 disabled:text-ink-400"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center bg-navy-900 text-white transition-colors hover:bg-navy-800 disabled:bg-ink-200 disabled:text-ink-400"
                 >
                   <Send className="h-4 w-4" />
                 </button>
@@ -725,14 +714,8 @@ export function AssistantChat({
 
 function TypingIndicator() {
   return (
-    <span className="inline-flex items-center gap-1 py-1">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-400"
-          style={{ animationDelay: `${i * 0.15}s` }}
-        />
-      ))}
+    <span className="inline-flex items-center gap-2 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-ink-400">
+      <span className="h-px w-8 animate-pulse bg-navy-700" /> Reviewing the record
     </span>
   );
 }

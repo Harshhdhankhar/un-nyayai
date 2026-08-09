@@ -15,6 +15,9 @@ export default async function MatterStrategyPage({
   if (!matter) return notFound();
 
   const routes = await getMatterRouteWithSteps(id);
+  const routeHeads = routes.filter(
+    (row, index, all) => all.findIndex((item) => item.route.id === row.route.id) === index
+  );
   const states = matter.routeSteps;
 
   const instanceForRoute = new Map<string, string>();
@@ -41,14 +44,19 @@ export default async function MatterStrategyPage({
   }
 
   return (
-    <div className="space-y-6">
-      {routes.map((row) => {
+    <div className="space-y-8">
+      <div className="max-w-3xl">
+        <p className="eyebrow text-navy-700">Procedural map</p>
+        <h2 className="mt-2 font-serif-display text-3xl text-navy-950">NyayPath</h2>
+        <p className="mt-2 text-sm leading-6 text-ink-600">Your route through this matter. Open a stage to see why it matters, what information supports it, and update its state.</p>
+      </div>
+      {routeHeads.map((row) => {
         const steps = routes
           .filter((r) => r.route.id === row.route.id)
           .map((r) => r.step);
         const stateMap = byInstance.get(instanceForRoute.get(row.route.id) ?? "") ?? new Map();
         return (
-          <Card key={row.route.id}>
+          <Card key={row.route.id} className="!rounded-none !border-0 !bg-transparent !shadow-none">
             <CardHeader>
               <CardTitle>{row.route.title}</CardTitle>
               {row.route.description && (

@@ -75,6 +75,20 @@ export async function getDraft(userId: string, draftId: string) {
   return rows[0] ?? null;
 }
 
+export async function updateDraft(
+  userId: string,
+  matterId: string,
+  draftId: string,
+  patch: Partial<{ title: string; content: string; status: "draft" | "review" | "final" }>
+) {
+  const [row] = await db
+    .update(drafts)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(and(eq(drafts.id, draftId), eq(drafts.userId, userId), eq(drafts.matterId, matterId)))
+    .returning();
+  return row ?? null;
+}
+
 export async function deleteDraft(userId: string, draftId: string) {
   await db
     .delete(drafts)

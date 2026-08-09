@@ -3,13 +3,27 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { LogOut, Menu, X, UserRound } from "lucide-react";
-import { navForRole } from "./nav";
+import {
+  ChevronRight,
+  LogOut,
+  Menu,
+  Scale,
+  UserRound,
+  X,
+} from "lucide-react";
+import { mobileNav, primaryNav, secondaryNav } from "./nav";
 import { cn } from "@/lib/utils";
+
+interface RecentMatter {
+  id: string;
+  title: string;
+  matterType: string;
+}
 
 export function AppShell({
   children,
   user,
+  recentMatters = [],
 }: {
   children: React.ReactNode;
   user: {
@@ -19,11 +33,11 @@ export function AppShell({
     role: string;
     isDemo: boolean;
   };
+  recentMatters?: RecentMatter[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const nav = navForRole(user.role);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -32,110 +46,142 @@ export function AppShell({
   }
 
   return (
-    <div className="flex min-h-svh bg-paper">
-      {/* Mobile overlay */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-navy-950/40 lg:hidden"
+    <div className="min-h-svh bg-paper text-ink-900">
+      {open ? (
+        <button
+          className="fixed inset-0 z-40 cursor-default bg-navy-950/30 backdrop-blur-[1px] lg:hidden"
           onClick={() => setOpen(false)}
+          aria-label="Close navigation"
         />
-      )}
+      ) : null}
 
-      {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-ink-200 bg-white transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-[17.5rem] flex-col border-r border-ink-200 bg-[#f7f5ef] px-3 transition-transform duration-200 lg:w-[14.5rem] lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-16 items-center gap-2 border-b border-ink-100 px-5">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-navy-900 text-sm font-bold text-white">
-              N
+        <div className="flex h-20 items-center px-2">
+          <Link href="/app" className="group flex items-center gap-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-700">
+            <span className="grid h-9 w-9 place-items-center border border-navy-900 bg-navy-950 text-paper transition-colors group-hover:bg-navy-800">
+              <Scale className="h-[18px] w-[18px]" strokeWidth={1.7} />
             </span>
-            <span className="text-base font-semibold tracking-tight text-navy-900">
-              NyayAI
+            <span>
+              <span className="block font-serif-display text-[1.2rem] font-semibold leading-none text-navy-950">NyayAI</span>
+              <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.18em] text-ink-500">Legal navigation</span>
             </span>
           </Link>
-          <button
-            className="ml-auto lg:hidden"
-            onClick={() => setOpen(false)}
-            aria-label="Close menu"
-          >
-            <X className="h-5 w-5 text-ink-500" />
+          <button onClick={() => setOpen(false)} className="ml-auto p-2 text-ink-500 lg:hidden" aria-label="Close menu">
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-          <p className="px-3 pb-2 text-xs font-medium uppercase tracking-wide text-ink-400">
-            {user.role === "advocate" ? "Legal workspace" : "My workspace"}
-          </p>
-          {nav.map((item) => {
-            const active =
-              item.href === "/app"
-                ? pathname === "/app"
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-navy-100 text-navy-900"
-                    : "text-ink-700 hover:bg-ink-100"
-                )}
-              >
-                <item.icon className="h-4.5 w-4.5" />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav aria-label="Primary" className="space-y-0.5 border-t border-ink-200 pt-4">
+          {primaryNav.map((item) => (
+            <RailLink key={item.href} item={item} pathname={pathname} onNavigate={() => setOpen(false)} />
+          ))}
         </nav>
 
-        <div className="border-t border-ink-100 p-3">
-          <div className="flex items-center gap-3 rounded-md px-2 py-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-100 text-ink-700">
-              <UserRound className="h-4.5 w-4.5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-ink-900">
-                {user.fullName ?? user.email.split("@")[0]}
-              </p>
-              <p className="truncate text-xs capitalize text-ink-500">
-                {user.role}
-                {user.isDemo ? " · demo" : ""}
-              </p>
+        {recentMatters.length ? (
+          <div className="mt-7 min-h-0">
+            <div className="mb-2 flex items-center justify-between px-2">
+              <p className="eyebrow">Recent matters</p>
+              <Link href="/app/matters" aria-label="View all matters" className="text-ink-400 hover:text-navy-900">
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
-            <button
-              onClick={logout}
-              aria-label="Sign out"
-              className="rounded-md p-2 text-ink-500 hover:bg-ink-100 hover:text-ink-900"
-            >
+            <div className="space-y-0.5">
+              {recentMatters.slice(0, 4).map((matter) => (
+                <Link
+                  key={matter.id}
+                  href={`/app/matters/${matter.id}/overview`}
+                  onClick={() => setOpen(false)}
+                  className="block border-l border-transparent px-3 py-2 text-[12px] text-ink-600 transition-colors hover:border-navy-700 hover:bg-white/70 hover:text-navy-950"
+                >
+                  <span className="block truncate font-medium">{matter.title}</span>
+                  <span className="mt-0.5 block truncate text-[10px] capitalize text-ink-400">{matter.matterType}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-auto border-t border-ink-200 py-3">
+          {secondaryNav.map((item) => (
+            <RailLink key={item.href} item={item} pathname={pathname} compact onNavigate={() => setOpen(false)} />
+          ))}
+          <div className="mt-2 flex items-center gap-2 border-t border-ink-200 px-2 pt-3">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-navy-100 text-navy-800">
+              <UserRound className="h-4 w-4" />
+            </span>
+            <Link href="/app/settings" className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-semibold text-ink-800">{user.fullName ?? user.email.split("@")[0]}</span>
+              <span className="block truncate text-[10px] capitalize text-ink-500">{user.role}{user.isDemo ? " · demo" : ""}</span>
+            </Link>
+            <button onClick={logout} aria-label="Sign out" className="p-2 text-ink-400 hover:text-critical-600">
               <LogOut className="h-4 w-4" />
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center gap-3 border-b border-ink-200 bg-white px-4 lg:px-8">
-          <button
-            className="rounded-md p-2 text-ink-700 hover:bg-ink-100 lg:hidden"
-            onClick={() => setOpen(true)}
-            aria-label="Open menu"
-          >
+      <div className="min-h-svh lg:pl-[14.5rem]">
+        <header className="sticky top-0 z-30 flex h-14 items-center border-b border-ink-200/80 bg-paper/92 px-4 backdrop-blur-md lg:hidden">
+          <button onClick={() => setOpen(true)} className="-ml-2 p-2 text-navy-950" aria-label="Open navigation">
             <Menu className="h-5 w-5" />
           </button>
-          <div className="flex-1" />
-          <span className="hidden rounded-full bg-verified-100 px-2.5 py-1 text-xs font-medium text-verified-700 sm:inline-flex">
-            Not legal advice
-          </span>
+          <Link href="/app" className="ml-3 font-serif-display text-lg font-semibold text-navy-950">NyayAI</Link>
+          <span className="ml-auto text-[9px] font-semibold uppercase tracking-[0.16em] text-verified-700">Source-aware</span>
         </header>
-        <main className="flex-1 px-4 py-8 lg:px-8">{children}</main>
+        <main className="min-h-svh pb-24 lg:pb-0">{children}</main>
       </div>
+
+      <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-ink-200 bg-[#fbfaf7]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg lg:hidden">
+        {mobileNav.map((item) => {
+          const href = item.href === "/app/menu" ? "#" : item.href;
+          const active = isActive(pathname, item.href);
+          return (
+            <Link
+              key={item.label}
+              href={href}
+              onClick={(event) => {
+                if (item.href === "/app/menu") {
+                  event.preventDefault();
+                  setOpen(true);
+                }
+              }}
+              className={cn("flex min-h-16 flex-col items-center justify-center gap-1 text-[10px] font-medium", active ? "text-navy-950" : "text-ink-500")}
+            >
+              <item.icon className="h-[19px] w-[19px]" strokeWidth={active ? 2 : 1.6} />
+              {item.shortLabel ?? item.label}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
+  );
+}
+
+function isActive(pathname: string, href: string) {
+  if (href === "/app") return pathname === "/app";
+  return pathname.startsWith(href);
+}
+
+function RailLink({ item, pathname, compact = false, onNavigate }: { item: (typeof primaryNav)[number]; pathname: string; compact?: boolean; onNavigate?: () => void }) {
+  const active = isActive(pathname, item.href);
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "group flex items-center gap-3 border-l-2 px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-700",
+        compact ? "py-2" : "py-2.5",
+        active ? "border-navy-900 bg-white text-navy-950" : "border-transparent text-ink-600 hover:bg-white/70 hover:text-navy-950"
+      )}
+    >
+      <item.icon className="h-[17px] w-[17px] shrink-0" strokeWidth={active ? 2 : 1.6} />
+      {item.label}
+    </Link>
   );
 }

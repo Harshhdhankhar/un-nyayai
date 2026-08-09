@@ -4,6 +4,8 @@ import { getMatterDetail } from "@/lib/matters/service";
 import { UploadDocuments } from "@/components/matter/upload-documents";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import Link from "next/link";
+import { ArrowRight, FileText } from "lucide-react";
 
 export default async function MatterDocumentsPage({
   params,
@@ -25,9 +27,9 @@ export default async function MatterDocumentsPage({
       ) : (
         <div className="space-y-2">
           {matter.documents.map((d) => (
-            <div key={d.id} className="rounded-md border border-ink-200 bg-white p-4">
+            <Link key={d.id} href={`/app/documents/${d.id}`} className="group block border-b border-ink-200 bg-white p-4 first:border-t">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium text-ink-900">{d.name}</p>
+                <p className="inline-flex items-center gap-2 text-sm font-medium text-ink-900"><FileText className="h-4 w-4 text-navy-700" />{d.name}</p>
                 <Badge tone={d.status === "analyzed" ? "green" : d.status === "processing" ? "amber" : "slate"}>
                   {d.status}
                 </Badge>
@@ -41,7 +43,8 @@ export default async function MatterDocumentsPage({
               {d.summary && (
                 <p className="mt-2 text-sm text-ink-600">{d.summary}</p>
               )}
-            </div>
+              <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-navy-700 opacity-0 transition-opacity group-hover:opacity-100">Open document <ArrowRight className="h-3 w-3" /></span>
+            </Link>
           ))}
         </div>
       )}

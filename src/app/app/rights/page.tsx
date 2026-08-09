@@ -1,20 +1,3 @@
 import { RightsExplorer } from "@/components/rights/rights-explorer";
-
 export const metadata = { title: "Know your rights" };
-
-export default function RightsPage() {
-  return (
-    <div className="mx-auto w-full max-w-2xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-navy-950">
-          Know your rights
-        </h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Describe what happened and see possible rights, remedies and official
-          channels. Guidance only — never a guarantee of outcome.
-        </p>
-      </div>
-      <RightsExplorer />
-    </div>
-  );
-}
+export default function RightsPage() { return <div className="workspace-page"><header className="max-w-3xl"><p className="eyebrow text-navy-700">Know your rights</p><h1 className="mt-3 font-serif-display text-4xl text-navy-950 sm:text-5xl">Start with the situation, not the statute.</h1><p className="mt-3 text-sm leading-6 text-ink-600">Describe what happened to see possible rights, remedies, facts to check and official channels. Guidance is clearly separated from verified sources.</p></header><div className="mt-8 max-w-4xl"><RightsExplorer /></div></div>; }
