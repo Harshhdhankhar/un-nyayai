@@ -24,13 +24,13 @@ export default function ForgotPasswordPage() {
             Reset your password.
           </h1>
           <p className="mt-2 text-sm text-[#5a6578]">
-            In demo mode, you can sign in directly without a password reset email.
+            Password reset by email isn&apos;t available in this deployment yet.
           </p>
         </div>
 
         <div className="rounded-2xl border border-border/90 bg-white p-6 sm:p-8 shadow-xs space-y-4 text-center">
           <p className="text-sm text-[#5a6578] leading-relaxed">
-            Local sessions and demo accounts do not require email verification. You can start instantly using the demo credentials.
+            If you&apos;ve forgotten your password, please contact your NyayAI administrator to have it reset. Otherwise, return to the sign-in page to continue.
           </p>
           <Link
             href="/login"

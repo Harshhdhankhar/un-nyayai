@@ -73,7 +73,7 @@ export default function LoginPage() {
                 Sign in to workspace
               </h1>
               <p className="text-muted-foreground text-xs mt-0.5">
-                Enter your credentials or jump directly into an instant demo session.
+                Enter your email and password to access your workspace.
               </p>
             </div>
 

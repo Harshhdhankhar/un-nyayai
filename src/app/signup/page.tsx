@@ -73,7 +73,7 @@ export default function SignupPage() {
                 Create workspace account
               </h1>
               <p className="text-muted-foreground text-xs mt-0.5">
-                Fill in your details or jump straight into a demo session.
+                Fill in your details to create your NyayAI account.
               </p>
             </div>
 

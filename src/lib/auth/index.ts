@@ -6,7 +6,7 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export { getSessionUserId, createSessionToken, verifySessionToken } from "./session";
-export { signupUser, loginUser, getUserById, createDemoUser } from "./service";
+export { signupUser, loginUser, getUserById } from "./service";
 
 /** Current authenticated user (with profile), or null. */
 export async function getCurrentUser() {

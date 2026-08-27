@@ -10,7 +10,6 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const params = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [demoLoading, setDemoLoading] = useState(false);
 
   function continueToApp() {
     const next = params.get("next") ?? "/app";
@@ -45,24 +44,6 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleDemoLogin() {
-    setError(null);
-    setDemoLoading(true);
-    try {
-      const res = await fetch("/api/auth/demo", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Could not start a demo session.");
-        return;
-      }
-      continueToApp();
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setDemoLoading(false);
     }
   }
 
@@ -151,7 +132,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
       <button
         type="submit"
-        disabled={loading || demoLoading}
+        disabled={loading}
         className="w-full h-10 rounded-lg bg-[#111418] text-white text-xs sm:text-sm font-medium transition hover:bg-black/90 disabled:opacity-50 flex items-center justify-center gap-2 shadow-xs cursor-pointer mt-1"
       >
         {loading ? (
@@ -163,31 +144,6 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           "Sign in to workspace"
         ) : (
           "Create workspace account"
-        )}
-      </button>
-
-      <div className="relative flex items-center justify-center py-1" aria-hidden="true">
-        <span className="w-full border-t border-border" />
-        <span className="absolute bg-white px-2.5 text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60">
-          or
-        </span>
-      </div>
-
-      <button
-        type="button"
-        disabled={loading || demoLoading}
-        onClick={handleDemoLogin}
-        className="w-full h-9.5 rounded-lg border border-border bg-white text-foreground text-xs sm:text-sm font-medium transition hover:bg-[#f5f2ea] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-      >
-        {demoLoading ? (
-          <>
-            <Loader2 className="size-3.5 animate-spin" />
-            <span>Starting demo…</span>
-          </>
-        ) : mode === "signup" ? (
-          "Skip — continue with demo session"
-        ) : (
-          "Continue with instant demo"
         )}
       </button>
     </form>

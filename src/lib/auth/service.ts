@@ -4,7 +4,6 @@ import { db } from "@/lib/db/client";
 import { users, profiles } from "@/lib/db/schema";
 import { hashPassword, verifyPassword } from "@/lib/security";
 import { z } from "zod";
-import crypto from "node:crypto";
 
 export const signupSchema = z.object({
   email: z.string().email(),
@@ -94,23 +93,4 @@ export async function getUserById(userId: string) {
     .where(eq(users.id, userId))
     .limit(1);
   return rows[0] ?? null;
-}
-
-export async function createDemoUser(): Promise<{ id: string; email: string }> {
-  const email = `demo-${crypto.randomBytes(4).toString("hex")}@nyayi.local`;
-  const [user] = await db
-    .insert(users)
-    .values({
-      email,
-      fullName: "Demo User",
-      role: "citizen",
-      isDemo: true,
-      passwordHash: hashPassword(crypto.randomBytes(16).toString("hex")),
-    })
-    .returning({ id: users.id, email: users.email });
-  await db.insert(profiles).values({
-    userId: user.id,
-    displayName: "Demo User",
-  });
-  return user;
 }

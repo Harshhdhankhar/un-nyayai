@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from "vitest";
-import { signupUser, createDemoUser } from "@/lib/auth/service";
+import { signupUser } from "@/lib/auth/service";
 import { createMatter, getMatterDetail, listMatters } from "@/lib/matters/service";
 import { createDocumentRecord, analyzeDocument, chunkText } from "@/lib/documents/service";
 import { retrieveDocumentChunks, chunksToSources } from "@/lib/retrieval/documents";
@@ -20,6 +20,14 @@ import { eq } from "drizzle-orm";
  * Integration tests against the local Postgres instance.
  * Requires a seeded database (npm run db:seed) and DATABASE_URL set.
  */
+
+/** Create a throwaway real account, used to assert cross-user isolation. */
+async function makeThrowawayUser(): Promise<{ id: string }> {
+  const email = `iso-${Date.now()}-${Math.random().toString(16).slice(2, 8)}@nyayi.test`;
+  const res = await signupUser({ email, password: "Test@12345", role: "citizen" });
+  if (!res.ok) throw new Error(res.error);
+  return { id: res.user.id };
+}
 
 describe("auth + matters integration", () => {
   const emails: string[] = [];
@@ -72,7 +80,7 @@ describe("auth + matters integration", () => {
 
   it("blocks cross-user access", async () => {
     if (userIds.length === 0) return;
-    const other = await createDemoUser();
+    const other = await makeThrowawayUser();
     const matter = await createMatter(userIds[0], {
       title: "Private matter",
       matterType: "other",
@@ -158,7 +166,7 @@ Section 34 of the Civil Procedure Code.`;
 
   it("does not leak another user's documents", async () => {
     if (!userId) return;
-    const other = await createDemoUser();
+    const other = await makeThrowawayUser();
     const hits = await retrieveDocumentChunks("refund of advance money", {
       userId: other.id,
     });
@@ -210,7 +218,7 @@ describe("chat sessions", () => {
     const all = await listThreads(userId);
     expect(all.some((t) => t.id === threadId)).toBe(true);
 
-    const other = await createDemoUser();
+    const other = await makeThrowawayUser();
     const foreign = await getThread(other.id, threadId);
     expect(foreign).toBeNull();
   });
