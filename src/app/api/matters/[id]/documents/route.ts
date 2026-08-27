@@ -1,10 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { safeHandler, validateUpload, sanitizeText } from "@/lib/security";
-import { createDocumentRecord, extractText, analyzeDocument } from "@/lib/documents/service";
+import { createDocumentRecord, extractDocument, analyzeDocument } from "@/lib/documents/service";
 import { getMatter } from "@/lib/matters/service";
-import { db } from "@/lib/db/client";
-import { documents } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 
 async function handler(req: Request, ctx: unknown) {
@@ -35,7 +32,8 @@ async function handler(req: Request, ctx: unknown) {
     }
     try {
       const buf = Buffer.from(await file.arrayBuffer());
-      const text = await extractText(file.type, file.name, buf);
+      const extracted = await extractDocument(file.type, file.name, buf);
+      const text = extracted?.text ?? null;
       const record = await createDocumentRecord({
         userId: user.id,
         matterId: id,
@@ -43,10 +41,15 @@ async function handler(req: Request, ctx: unknown) {
         mimeType: file.type,
         sizeBytes: file.size,
         extractedText: text,
+        pageOffsets: extracted?.pageOffsets ?? [],
       });
       let summary: string | undefined;
       if (text) {
-        const analysis = await analyzeDocument(record.id, text);
+        const analysis = await analyzeDocument(
+          record.id,
+          text,
+          extracted?.pageOffsets ?? []
+        );
         summary = analysis.summary;
       }
       results.push({ name: file.name, status: "processed", summary });

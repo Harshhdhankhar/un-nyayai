@@ -51,6 +51,7 @@ export function NewMatterForm() {
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
     setError(null);
     const form = new FormData(e.currentTarget);

@@ -15,6 +15,7 @@ const tabs = [
   { href: "drafts", label: "Drafts" },
   { href: "delay-analysis", label: "Delay analysis" },
   { href: "second-opinion", label: "Second opinion" },
+  { href: "workbench", label: "Workbench" },
   { href: "hearings", label: "Hearing prep" },
 ];
 
@@ -22,7 +23,7 @@ export function MatterTabs({ matterId }: { matterId: string }) {
   const pathname = usePathname();
   const current = pathname.split("/").pop() ?? "overview";
   return (
-    <nav aria-label="Matter sections" className="scrollbar-none -mx-4 overflow-x-auto border-y border-ink-200 px-4 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
+    <nav aria-label="Matter sections" className="scrollbar-none -mx-4 overflow-x-auto border-y border-ink-200 px-4 print:hidden sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
       <div className="flex min-w-max">
         {tabs.map((tab) => {
           const active = current === tab.href || current === tab.legacyHref;

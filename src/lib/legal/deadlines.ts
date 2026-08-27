@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, ilike } from "drizzle-orm";
+import { ilike } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { deadlineRules } from "@/lib/db/schema";
 import { addDays, addMonths, addYears } from "date-fns";

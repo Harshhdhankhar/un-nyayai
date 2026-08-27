@@ -9,19 +9,26 @@ import {
 } from "./client";
 import { mockSearch, mockDoc } from "./mock";
 import { mapSearchDoc, mapDocResponse, extractCourt } from "./mapper";
+import { buildKanoonQuery } from "./query";
 import type { KanoonFilter, KanoonSearchResult } from "./types";
 import { logger } from "@/lib/logger";
+import { hasIndianKanoon } from "@/lib/config";
+import { classifyProviderError } from "@/lib/providers/result";
+import type { ProviderFailure } from "@/lib/providers/result";
 
 /* =========================================================================
  * Indian Kanoon search/document facade with graceful degradation.
  * When the live API is unavailable, returns clearly-labelled mock results
- * (callers must surface the mock flag to the user). Never pretends the mock
- * is live.
+ * ONLY when the provider is not configured. When it IS configured but fails
+ * (timeout/auth/rate-limit), it returns no fabricated results plus a failure
+ * signal, so the UI can say "could not refresh" instead of showing made-up
+ * judgments.
  * ========================================================================= */
 
 export interface KanoonSearchOutput {
   results: KanoonSearchResult[];
   mode: "live" | "mock";
+  failure?: ProviderFailure;
 }
 
 export async function search(
@@ -42,8 +49,22 @@ export async function search(
       error: err instanceof Error ? err.message : String(err),
       q,
     });
-    return { results: mockSearch(q), mode: "mock" };
+    if (!hasIndianKanoon) {
+      return { results: mockSearch(q), mode: "mock" };
+    }
+    return { results: [], mode: "live", failure: classifyProviderError(err, { configured: true }) };
   }
+}
+
+/**
+ * Natural-language research search. Structures the query (court token, date
+ * range, stripped fillers) then runs the provider. Falls back to a plain
+ * search of the raw query when structuring yields nothing usable.
+ */
+export async function searchStructured(natural: string, page = 0): Promise<KanoonSearchOutput> {
+  const structured = buildKanoonQuery(natural);
+  const q = structured.query || cleanRaw(natural);
+  return search(q, { ...structured.filter, pagenum: page });
 }
 
 export async function fetchDocument(tid: number) {
@@ -95,6 +116,10 @@ function cleanFragment(fragment: string): string {
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function cleanRaw(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 export function toSourceItem(result: KanoonSearchResult, relevanceScore = 1) {

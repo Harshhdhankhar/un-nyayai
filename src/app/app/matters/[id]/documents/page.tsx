@@ -22,7 +22,13 @@ export default async function MatterDocumentsPage({
 
       {matter.documents.length === 0 ? (
         <div className="rounded-lg border border-dashed border-ink-200 bg-white py-12 text-center">
-          <p className="text-sm text-ink-500">No documents uploaded yet.</p>
+          <FileText className="mx-auto h-7 w-7 text-ink-400" />
+          <p className="mt-4 text-sm font-semibold text-navy-950">No documents yet</p>
+          <p className="mx-auto mt-1.5 max-w-md text-sm leading-6 text-ink-500">
+            Add what relates to this matter — agreements, notices, court orders,
+            receipts, FIRs. NyayAI extracts parties, dates, amounts and
+            directions automatically and links them to your facts and timeline.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">

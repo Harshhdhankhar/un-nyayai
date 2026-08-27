@@ -27,6 +27,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await runTriage(parsed.data.statement, parsed.data.language);
+  const result = await runTriage(parsed.data.statement);
   return Response.json({ ok: true, triage: result });
 }

@@ -8,15 +8,15 @@ type ButtonSize = "sm" | "md" | "lg";
 
 const variants: Record<ButtonVariant, string> = {
   primary:
-    "bg-navy-900 text-white hover:bg-navy-800 focus-visible:ring-navy-700 disabled:bg-ink-200 disabled:text-ink-400",
+    "bg-foreground text-background hover:bg-foreground/90 focus-visible:ring-foreground disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-xs",
   secondary:
-    "bg-ink-100 text-ink-900 hover:bg-ink-200 focus-visible:ring-ink-400",
+    "bg-paper-warm text-foreground border border-border hover:bg-[#ede9df] focus-visible:ring-border cursor-pointer",
   ghost:
-    "bg-transparent text-ink-700 hover:bg-ink-100 focus-visible:ring-ink-400",
+    "bg-transparent text-foreground hover:bg-paper-warm focus-visible:ring-border cursor-pointer",
   outline:
-    "border border-ink-200 bg-white text-ink-900 hover:border-navy-300 hover:text-navy-800 focus-visible:ring-navy-700",
+    "border border-border bg-white text-foreground hover:bg-paper-warm hover:border-foreground/60 focus-visible:ring-border cursor-pointer shadow-2xs",
   danger:
-    "bg-critical-600 text-white hover:bg-red-700 focus-visible:ring-red-500",
+    "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 cursor-pointer shadow-xs",
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -38,7 +38,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
         variants[variant],
         sizes[size],

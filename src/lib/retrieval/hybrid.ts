@@ -25,22 +25,44 @@ export async function hybridRetrieve(
   query: string,
   options: RetrieveOptions = {}
 ): Promise<SectionHit[]> {
-  const k = options.k ?? 8;
-  const [semantic, keyword] = await Promise.all([
-    semanticSearch(query, k),
-    keywordSearch(query, k).catch((err) => {
-      logger.warn("keyword_search_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return [] as SectionHit[];
-    }),
-  ]);
+  return hybridRetrieveExpanded([query], options);
+}
 
-  let results = reciprocalRankFusion<SectionHit>([semantic, keyword], {
-    weights: [0.7, 0.5],
+/**
+ * Multi-query hybrid retrieval: every query runs through both channels
+ * (pgvector + FTS, backed by HNSW/GIN indexes) and all ranked lists are
+ * fused with RRF. Use with an expanded query set (rewritten standalone
+ * query + keyword variants) for robust recall on conversational input.
+ */
+export async function hybridRetrieveExpanded(
+  queries: string[],
+  options: RetrieveOptions = {}
+): Promise<SectionHit[]> {
+  const k = options.k ?? 8;
+  const unique = queries.map((q) => q.trim()).filter(Boolean).slice(0, 4);
+  if (unique.length === 0) return [];
+
+  // Each query contributes a semantic list; each also a keyword list.
+  // Weights: semantic channels dominate, first (standalone) query ranks higher.
+  const channelTasks: Promise<SectionHit[]>[] = [];
+  for (const q of unique) {
+    channelTasks.push(semanticSearch(q, k));
+    channelTasks.push(
+      keywordSearch(q, k).catch((err) => {
+        logger.warn("keyword_search_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return [] as SectionHit[];
+      })
+    );
+  }
+  const lists = await Promise.all(channelTasks);
+
+  let results = reciprocalRankFusion<SectionHit>(lists, {
+    weights: lists.map((_, i) => (i % 2 === 0 ? 0.7 : 0.5)),
   });
   results = dedupeById(results);
-  results = rerank(results, query);
+  results = rerank(results, unique[0]);
   results = normalizeScores(results);
 
   let filtered = results.map((r) => r.item);

@@ -35,11 +35,13 @@ export function CaseSearch({
   const [hasNextPage, setHasNextPage] = useState(false);
   const [mode, setMode] = useState<"live" | "demo">("live");
   const [error, setError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
 
   async function runSearch(p: number) {
     if (!query.trim() || searching) return;
     setSearching(true);
     setError(null);
+    setSearched(true);
     const params = new URLSearchParams({ query: query.trim(), page: String(p) });
     if (court.trim()) params.set("court", court.trim());
     if (year.trim()) params.set("year", year.trim());
@@ -175,12 +177,20 @@ export function CaseSearch({
         </>
       )}
 
-      {results.length === 0 && !searching && (
+      {searched && !searching && !error && results.length === 0 ? (
+        <div className="rounded-md border border-dashed border-ink-300 p-8 text-center">
+          <p className="text-sm font-semibold text-navy-950">No cases found</p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-ink-500">
+            Nothing matched. Try a different spelling, add a year, or use the
+            court code (e.g. DLHC01) to narrow the search.
+          </p>
+        </div>
+      ) : results.length === 0 && !searching ? (
         <p className="text-sm text-ink-400">
           Search court records by party name, case number or year. Use the court
           code (e.g. DLHC01) to narrow results to a specific court.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

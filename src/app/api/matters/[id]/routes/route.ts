@@ -28,6 +28,9 @@ async function handler(req: Request, ctx: unknown) {
   }
 
   const body = schema.parse(await req.json());
+  if (!matter.routes.some((instance) => instance.id === body.instanceId)) {
+    return Response.json({ ok: false, error: "Route instance not found" }, { status: 404 });
+  }
   const state = await upsertStepState(body.instanceId, body.stepOrder, body.status, body.notes);
   if (!state) {
     return Response.json({ ok: false, error: "Route instance not found" }, { status: 404 });

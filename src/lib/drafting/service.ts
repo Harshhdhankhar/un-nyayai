@@ -12,6 +12,7 @@ export const draftKinds = [
   "basic_complaint",
   "rent_agreement",
   "employment_representation",
+  "delay_objection",
 ] as const;
 export type DraftKind = (typeof draftKinds)[number];
 

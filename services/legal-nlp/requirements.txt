@@ -1,3 +1,11 @@
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
 pydantic>=2.6.0
+
+# Optional — PII detection (Microsoft Presidio). The service degrades to a
+# pure-regex fallback when these are not installed.
+presidio-analyzer>=2.2.35
+
+# Optional — OCR for scanned documents/images.
+pytesseract>=0.3.13
+Pillow>=10.3.0

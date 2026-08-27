@@ -37,6 +37,10 @@ const STATUTES = [
   { actName: "Right to Information Act, 2005", shortTitle: "RTI Act", category: "constitutional", isRepealed: false, effectiveDate: "2005-10-12", sourceUrl: "https://www.indiacode.nic.in/handle/123456789/2072" },
   { actName: "Limitation Act, 1963", shortTitle: "Limitation Act", category: "procedure", isRepealed: false, effectiveDate: "1964-01-01", sourceUrl: "https://www.indiacode.nic.in/handle/123456789/2262" },
   { actName: "Protection of Women from Domestic Violence Act, 2005", shortTitle: "DV Act", category: "family", isRepealed: false, effectiveDate: "2006-10-26", sourceUrl: "https://www.indiacode.nic.in/handle/123456789/1602" },
+  { actName: "Information Technology Act, 2000", shortTitle: "IT Act", category: "cyber", isRepealed: false, effectiveDate: "2000-10-17", sourceUrl: "https://www.indiacode.nic.in/handle/123456789/1999" },
+  { actName: "Hindu Marriage Act, 1955", shortTitle: "HMA", category: "family", isRepealed: false, effectiveDate: "1955-05-18", sourceUrl: "https://www.indiacode.nic.in/handle/123456789/1364" },
+  { actName: "Motor Vehicles Act, 1988", shortTitle: "MV Act", category: "civil", isRepealed: false, effectiveDate: "1989-03-01", sourceUrl: "https://www.indiacode.nic.in/handle/123456789/1806" },
+  { actName: "Indian Contract Act, 1872", shortTitle: "Contract Act", category: "commercial", isRepealed: false, effectiveDate: "1872-09-01", sourceUrl: "https://www.indiacode.nic.in/handle/123456789/2187" },
 ];
 
 const SECTIONS: { act: string; sectionNumber: string; heading: string; text: string }[] = [
@@ -135,6 +139,60 @@ const SECTIONS: { act: string; sectionNumber: string; heading: string; text: str
     sectionNumber: "12",
     heading: "Application to Magistrate",
     text: "An aggrieved person or a Protection Officer or any other person on behalf of the aggrieved person may present an application to the Magistrate seeking one or more reliefs under this Act.",
+  },
+  {
+    act: "Information Technology Act, 2000",
+    sectionNumber: "65",
+    heading: "Tampering with computer source documents",
+    text: "Whoever knowingly or intentionally conceals, destroys or alters any computer source code used for a computer, computer programme, computer system or computer network, when the computer source code is required to be kept or maintained by law for the time being in force, shall be punishable with imprisonment up to three years, or with fine which may extend up to two lakh rupees, or with both.",
+  },
+  {
+    act: "Information Technology Act, 2000",
+    sectionNumber: "66C",
+    heading: "Punishment for identity theft",
+    text: "Whoever, fraudulently or dishonestly makes use of the electronic signature, password or any other unique identification feature of any other person, shall be punished with imprisonment of either description for a term which may extend to three years and shall also be liable to fine which may extend to rupees one lakh.",
+  },
+  {
+    act: "Information Technology Act, 2000",
+    sectionNumber: "66D",
+    heading: "Punishment for cheating by personation by using computer resource",
+    text: "Whoever, by means of any communication device or computer resource, cheats by personation, shall be punished with imprisonment of either description for a term which may extend to three years and shall also be liable to fine which may extend to one lakh rupees.",
+  },
+  {
+    act: "Consumer Protection Act, 2019",
+    sectionNumber: "35",
+    heading: "Admissibility of complaint",
+    text: "The District Commission shall, on receipt of a complaint, admit it unless it appears that there is no sufficient ground to entertain it, and shall refer a copy to the opposite party directing them to give a version within thirty days. A complaint may be filed electronically and the Commission may hear parties through video-conferencing.",
+  },
+  {
+    act: "Consumer Protection Act, 2019",
+    sectionNumber: "39",
+    heading: "Findings of the District Commission",
+    text: "If the District Commission is satisfied that the goods complained against suffer from defects or the services are deficient, it may direct the opposite party to remove the defect, replace the goods, refund the price, pay compensation for loss or injury, discontinue unfair trade practices, or provide any other relief it deems fit.",
+  },
+  {
+    act: "Protection of Women from Domestic Violence Act, 2005",
+    sectionNumber: "18",
+    heading: "Protection orders",
+    text: "The Magistrate may, after giving the respondent an opportunity of being heard, pass a protection order prohibiting the respondent from committing any act of domestic violence, from aiding or abetting such acts, from entering the place of employment or residence of the aggrieved person, or from attempting to communicate with her in any form.",
+  },
+  {
+    act: "Hindu Marriage Act, 1955",
+    sectionNumber: "13",
+    heading: "Grounds for divorce",
+    text: "Any marriage solemnized under this Act may be dissolved by a decree of divorce on grounds including that the other party has, after the marriage, had voluntary sexual intercourse with a person other than the spouse; has deserted the petitioner for a continuous period of not less than two years; has treated the petitioner with cruelty; or suffers from an incurable form of leprosy or venereal disease in a communicable stage.",
+  },
+  {
+    act: "Motor Vehicles Act, 1988",
+    sectionNumber: "166",
+    heading: "Application for compensation",
+    text: "An application for compensation arising out of an accident involving the death of, or bodily injury to, persons arising out of the use of motor vehicles may be made to the Claims Tribunal having jurisdiction, by the person who sustained the injury, by the owner of the property, or where death has resulted, by all or any of the legal representatives of the deceased.",
+  },
+  {
+    act: "Indian Contract Act, 1872",
+    sectionNumber: "73",
+    heading: "Compensation for loss or damage caused by breach of contract",
+    text: "When a contract has been broken, the party who suffers by such breach is entitled to receive, from the party who has broken the contract, compensation for any loss or damage caused to him thereby, which naturally arose in the usual course of things from such breach, or which the parties knew, when they made the contract, to be likely to result from its breach.",
   },
 ];
 
@@ -347,13 +405,26 @@ const KNOWLEDGE_NODES: (typeof knowledgeNodes.$inferInsert)[] = [
   { type: "LEGAL_AID_SERVICE", slug: "aid-dlsa", title: "DLSA free legal aid" },
 ];
 
-const KNOWLEDGE_EDGES: (typeof knowledgeEdges.$inferInsert)[] = [];
-
 const JUDGMENTS: (typeof judgments.$inferInsert)[] = [
   {
-    title: "Delhi Development Authority v. Skipper Construction — recovery principles",
-    court: "Supreme Court of India", citation: "AIR 1996 SC 2005 (demo)", decisionDate: "1996-01-01",
-    summary: "Illustrative demo judgment record. Real citation must be verified.",
+    title: "K.S. Puttaswamy v. Union of India — right to privacy",
+    court: "Supreme Court of India", citation: "(2017) 10 SCC 1", decisionDate: "2017-08-24",
+    summary:
+      "A nine-judge Constitution Bench held that the right to privacy is a fundamental right protected by the Constitution, intrinsic to life and personal liberty. Relevant to data-protection, identity theft and surveillance matters. Citation must be verified against the official report.",
+    provenance: "demo", sourceUrl: "https://main.sci.gov.in",
+  },
+  {
+    title: "Shreya Singhal v. Union of India — online speech and s.66A IT Act",
+    court: "Supreme Court of India", citation: "(2015) 5 SCC 1", decisionDate: "2015-03-24",
+    summary:
+      "The Supreme Court struck down section 66A of the Information Technology Act as unconstitutional for chilling free expression, while upholding the intermediary-liability framework. Relevant to cyber complaints involving posted content. Citation must be verified against the official report.",
+    provenance: "demo", sourceUrl: "https://main.sci.gov.in",
+  },
+  {
+    title: "Arnesh Kumar v. State of Bihar — arrest safeguards",
+    court: "Supreme Court of India", citation: "(2014) 8 SCC 273", decisionDate: "2014-07-02",
+    summary:
+      "Laid down mandatory checklist for police before arresting an accused in offences punishable up to seven years: arrest is not automatic, a notice of appearance must ordinarily issue first, and compliance with section 41A CrPC must be recorded. Relevant to criminal matters where arrest threats are used as pressure. Citation must be verified against the official report.",
     provenance: "demo", sourceUrl: "https://main.sci.gov.in",
   },
 ];
@@ -393,6 +464,14 @@ async function main() {
   logger.info("sections_seeded", { count: SECTIONS.length });
 
   for (const m of LAW_MAPPINGS) {
+    const existing = await db
+      .select({ id: lawMappings.id })
+      .from(lawMappings)
+      .where(
+        sql`${lawMappings.pair} = ${m.pair} AND ${lawMappings.oldSection} = ${m.oldSection} AND ${lawMappings.newSection} = ${m.newSection}`
+      )
+      .limit(1);
+    if (existing.length > 0) continue;
     await db.insert(lawMappings).values(m);
   }
   logger.info("law_mappings_seeded", { count: LAW_MAPPINGS.length });
@@ -429,11 +508,23 @@ async function main() {
   logger.info("routes_seeded", { count: ROUTES.length });
 
   for (const d of DEADLINE_RULES) {
+    const existing = await db
+      .select({ id: deadlineRules.id })
+      .from(deadlineRules)
+      .where(sql`${deadlineRules.triggerEvent} = ${d.triggerEvent} AND ${deadlineRules.statute} = ${d.statute}`)
+      .limit(1);
+    if (existing.length > 0) continue;
     await db.insert(deadlineRules).values(d);
   }
   logger.info("deadline_rules_seeded", { count: DEADLINE_RULES.length });
 
   for (const s of LEGAL_AID_SERVICES) {
+    const existing = await db
+      .select({ id: legalAidServices.id })
+      .from(legalAidServices)
+      .where(sql`${legalAidServices.name} = ${s.name}`)
+      .limit(1);
+    if (existing.length > 0) continue;
     await db.insert(legalAidServices).values(s);
   }
   logger.info("legal_aid_seeded", { count: LEGAL_AID_SERVICES.length });
@@ -474,14 +565,27 @@ async function main() {
   logger.info("knowledge_graph_seeded", { nodes: nodeIds.size, edges: edgeDefs.length });
 
   for (const j of JUDGMENTS) {
+    const existing = await db
+      .select({ id: judgments.id })
+      .from(judgments)
+      .where(sql`${judgments.citation} = ${j.citation}`)
+      .limit(1);
+    if (existing.length > 0) continue;
     await db.insert(judgments).values(j);
   }
   logger.info("judgments_seeded", { count: JUDGMENTS.length });
 
   // legal sources records for sections (verification layer)
   for (const sec of SECTIONS) {
+    const title = `${sec.act} — Section ${sec.sectionNumber}`;
+    const existing = await db
+      .select({ id: legalSources.id })
+      .from(legalSources)
+      .where(sql`${legalSources.title} = ${title} AND ${legalSources.version} = 'seed-1.0'`)
+      .limit(1);
+    if (existing.length > 0) continue;
     await db.insert(legalSources).values({
-      title: `${sec.act} — Section ${sec.sectionNumber}`,
+      title,
       type: "section",
       authority: sec.act,
       sourceName: "legislative.gov.in",
@@ -503,6 +607,20 @@ async function main() {
     done++;
   }
   logger.info("embedding_done", { count: done });
+
+  // Embed judgments so case-law is retrievable via RAG.
+  logger.info("embedding_judgments");
+  const unembeddedJudgments = await db
+    .select()
+    .from(judgments)
+    .where(isNull(judgments.embedding));
+  let jDone = 0;
+  for (const j of unembeddedJudgments) {
+    const { vector } = await embed(`${j.title} ${j.court ?? ""} ${j.summary ?? ""}`);
+    await db.execute(sql`UPDATE judgments SET embedding = ${`[${vector.join(",")}]`}::vector WHERE id = ${j.id}`);
+    jDone++;
+  }
+  logger.info("judgment_embedding_done", { count: jDone });
   logger.info("seed_complete");
 }
 

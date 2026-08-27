@@ -1,5 +1,31 @@
 import { describe, it, expect } from "vitest";
-import { chunkText, extractEntities, inferKind } from "@/lib/documents/service";
+import { chunkText, extractEntities, inferKind, sanitizeText } from "@/lib/documents/service";
+
+describe("sanitizeText", () => {
+  // Regression for the /api/documents/upload 500: a scanned/compressed PDF fell
+  // back to raw-stream scraping and produced text containing NUL bytes, which a
+  // Postgres text column cannot store — aborting the insert.
+  it("strips the NUL byte that aborts the Postgres insert", () => {
+    const dirty = "Jul 09 2026\u0000DFC8B5C65\u0000binary";
+    const clean = sanitizeText(dirty);
+    expect(clean.includes("\u0000")).toBe(false);
+    expect(clean).toBe("Jul 09 2026DFC8B5C65binary");
+  });
+
+  it("removes other C0 control characters but keeps tab/newline/carriage return", () => {
+    const dirty = "abcd\u0007e\tf\ng\rh\u001F";
+    expect(sanitizeText(dirty)).toBe("abcde\tf\ng\rh");
+  });
+
+  it("drops the Unicode replacement char binary scraping emits as noise", () => {
+    expect(sanitizeText("clause\uFFFD one")).toBe("clause one");
+  });
+
+  it("leaves ordinary legal text untouched", () => {
+    const text = "This Non-Disclosure Agreement is made on 09 Jul 2026.";
+    expect(sanitizeText(text)).toBe(text);
+  });
+});
 
 describe("chunkText", () => {
   it("splits long text into bounded chunks", () => {

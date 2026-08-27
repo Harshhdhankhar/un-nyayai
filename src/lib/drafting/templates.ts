@@ -22,6 +22,7 @@ export const templates: TemplateDefinition[] = [
   { kind: "basic_complaint", label: "Complaint / plaint", description: "Basic court complaint" },
   { kind: "rent_agreement", label: "Rent agreement", description: "Tenancy / lease agreement" },
   { kind: "employment_representation", label: "Employment representation", description: "Letter to employer re: grievance" },
+  { kind: "delay_objection", label: "Delay / adjournment objection", description: "Draft objection from the hearing record" },
 ];
 
 type MetaPick = (m: DraftMeta) => string;
@@ -257,8 +258,45 @@ Subject: Representation regarding employment grievance
 
 5. I remain willing to cooperate in any inquiry.
 
-Yours sincerely,
+  Yours sincerely,
 ${employee} (Employee)`;
+    },
+  },
+
+  delay_objection: {
+    title: () => "Application / objection on repeated adjournments",
+    body: (m) => {
+      const applicant = m.parties[0]?.name ?? "The applicant";
+      const facts = m.facts.filter(Boolean);
+      const context = facts.map((line) => `   ${line}`).join("\n");
+      const detail = facts.length
+        ? context
+        : "   The hearing record has not been summarised here; add the recorded adjournment details before use.";
+      return `DRAFT — REVIEW BEFORE FILING
+
+BEFORE THE HON'BLE COURT
+IN THE MATTER OF:
+${applicant}
+versus
+________
+
+OBJECTION / APPLICATION REGARDING ADJOURNMENTS IN THE ABOVE MATTER
+
+1. The present application is being filed to place on record the pattern of adjournments in the above matter as per the available hearing record.
+
+2. The recorded position is as follows:
+${detail}
+
+3. It is respectfully submitted that the above dates and entries are drawn from the available record of the case. The record does not, on its own, attribute the cause of each adjournment.
+
+4. The applicant requests that the above adjournment pattern be considered while fixing further dates, and that the matter be listed for substantive proceedings at the earliest.
+
+5. Nothing stated herein is intended to impute motive or blame to any party, and the applicant seeks only expeditious disposal in the interest of justice.
+
+Place: ________
+Date: ________
+
+Counsel for ${applicant}`;
     },
   },
 };

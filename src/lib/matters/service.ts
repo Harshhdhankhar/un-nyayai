@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   matters,
@@ -15,7 +15,6 @@ import {
   matterRouteInstances,
   matterRouteStepStates,
 } from "@/lib/db/schema";
-import type { LegalCategory } from "@/lib/legal/schemas";
 import { z } from "zod";
 
 export const createMatterSchema = z.object({
@@ -30,7 +29,10 @@ export const createMatterSchema = z.object({
   court: z.string().max(240).optional(),
   cnr: z.string().max(80).optional(),
   language: z.enum(["en", "hi", "hinglish"]).default("en"),
-  facts: z.array(z.object({ fact: z.string().min(1) })).default([]),
+  facts: z.array(z.object({
+    fact: z.string().min(1),
+    kind: z.enum(["statement", "extracted", "missing"]).optional(),
+  })).default([]),
   parties: z
     .array(
       z.object({
@@ -73,7 +75,7 @@ export async function createMatter(userId: string, input: CreateMatterInput) {
     .returning();
 
   for (const f of facts) {
-    await db.insert(matterFacts).values({ matterId: matter.id, fact: f.fact });
+    await db.insert(matterFacts).values({ matterId: matter.id, fact: f.fact, kind: f.kind ?? "statement" });
   }
   for (const p of parties) {
     await db
@@ -93,6 +95,16 @@ export async function createMatter(userId: string, input: CreateMatterInput) {
   }
 
   return matter;
+}
+
+/** Find a Matter the user already owns that is linked to this CNR. */
+export async function findMatterByCnr(userId: string, cnr: string) {
+  const rows = await db
+    .select({ id: matters.id })
+    .from(matters)
+    .where(and(eq(matters.userId, userId), eq(matters.cnr, cnr)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function getMatter(matterId: string) {

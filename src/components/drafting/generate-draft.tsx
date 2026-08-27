@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Textarea } from "@/components/ui/input";
+import { Label } from "@/components/ui/input";
 import { templates } from "@/lib/drafting/templates";
 import { FileText, Loader2 } from "lucide-react";
 

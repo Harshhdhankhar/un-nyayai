@@ -4,6 +4,7 @@ import { ArrowLeft, Circle } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getMatterDetail } from "@/lib/matters/service";
 import { MatterTabs } from "@/components/matter/matter-tabs";
+import { MatterSearch } from "@/components/matter/matter-search";
 
 export default async function MatterLayout({ children, params }: LayoutProps<"/app/matters/[id]">) {
   const user = await getCurrentUser();
@@ -35,6 +36,7 @@ export default async function MatterLayout({ children, params }: LayoutProps<"/a
             <div className="col-span-2 sm:col-span-1"><dt className="eyebrow">CNR</dt><dd className="mt-1 font-mono text-[11px] text-ink-700">{matter.cnr ?? "Not linked"}</dd></div>
           </dl>
         </div>
+        <div className="mt-4 flex justify-end lg:mt-0"><MatterSearch matterId={id} /></div>
       </header>
       <MatterTabs matterId={id} />
       <div className="mt-7">{children}</div>

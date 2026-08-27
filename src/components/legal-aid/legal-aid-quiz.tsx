@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { Loader2, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export interface Assessment {
   possibleEligibility: boolean;
@@ -16,7 +16,7 @@ export interface Assessment {
 
 export function LegalAidQuiz() {
   const [age, setAge] = useState("");
-  const [gender, setGender] = useState("prefer_not");
+  const gender = "prefer_not";
   const [income, setIncome] = useState("");
   const [state, setState] = useState("");
   const [toggles, setToggles] = useState({

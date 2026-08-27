@@ -3,12 +3,28 @@ import { safeHandler, sanitizeText } from "@/lib/security";
 import { addSource, getMatter } from "@/lib/matters/service";
 import { z } from "zod";
 
+const SOURCE_TYPES = [
+  "statute",
+  "section",
+  "judgment",
+  "article",
+  "rule",
+  "other",
+] as const;
+
 const schema = z.object({
   title: z.string().min(1).max(500),
-  type: z.string().default("other"),
+  type: z
+    .enum(SOURCE_TYPES)
+    .default("other"),
   authority: z.string().max(240).optional(),
   citation: z.string().max(240).optional(),
-  url: z.string().url().optional().or(z.literal("")),
+  url: z
+    .string()
+    .url()
+    .refine((u) => /^https?:\/\//i.test(u), "Must be http(s).")
+    .optional()
+    .or(z.literal("")),
   excerpt: z.string().max(2000).optional(),
   status: z.enum(["verified", "interpretation", "needs_verification"]).default("needs_verification"),
 });

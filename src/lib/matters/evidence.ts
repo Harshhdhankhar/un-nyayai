@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db/client";
-import { evidenceItems, routeSteps, legalRoutes, matterRouteInstances } from "@/lib/db/schema";
+import { evidenceItems, routeSteps, matterRouteInstances } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 /* =========================================================================

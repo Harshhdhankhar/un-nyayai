@@ -16,7 +16,6 @@ export function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(":");
   if (!salt || !hash) return false;
   const candidate = crypto.scryptSync(password, salt, 64).toString("hex");
-  // constant-time compare
   const a = Buffer.from(hash, "hex");
   const b = Buffer.from(candidate, "hex");
   return a.length === b.length && crypto.timingSafeEqual(a, b);
@@ -95,16 +94,20 @@ export const allowedUploadMimeTypes = new Set([
   "text/plain",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/octet-stream",
 ]);
 
 export const maxUploadBytes = 15 * 1024 * 1024; // 15MB
 
-export function validateUpload(file: { type: string; size: number }) {
-  if (!allowedUploadMimeTypes.has(file.type)) {
-    return { ok: false as const, error: "Unsupported file type." };
+export function validateUpload(file: { type: string; size: number; name?: string }) {
+  const isAllowedExt = file.name ? /\.(pdf|docx|doc|txt|png|jpe?g|webp)$/i.test(file.name) : false;
+  const isAllowedMime = allowedUploadMimeTypes.has(file.type);
+
+  if (!isAllowedMime && !isAllowedExt) {
+    return { ok: false as const, error: "Unsupported file format. Please upload PDF, DOCX, TXT or image files." };
   }
   if (file.size > maxUploadBytes) {
-    return { ok: false as const, error: "File is too large (max 15MB)." };
+    return { ok: false as const, error: "File is too large (maximum size is 15MB)." };
   }
   return { ok: true as const };
 }

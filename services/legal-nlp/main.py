@@ -1,11 +1,15 @@
-"""Rule-based legal text analysis service.
+"""Legal text analysis service.
 
-Pure Python, no ML dependencies. Designed to run offline and be fast.
-Provides: entity extraction, obligation/deadline detection and risk flags.
+Rule-based legal analysis plus optional Microsoft Presidio PII detection and
+optional OCR. Designed to run offline and be fast. Every heavy dependency
+(Presidio, spaCy, pytesseract) is optional — endpoints degrade gracefully to
+pure-Python fallbacks when they are not installed.
 """
 
 from __future__ import annotations
 
+import base64
+import io
 import re
 from typing import Any
 
@@ -14,8 +18,8 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="NyayAI Legal NLP",
-    description="Rule-based analysis of legal documents (entities, obligations, deadlines, risks).",
-    version="0.1.0",
+    description="Legal document analysis: entities, obligations, deadlines, risks, PII detection (Presidio), OCR.",
+    version="0.2.0",
 )
 
 
@@ -155,7 +159,250 @@ def _summarize(text: str) -> str:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "service": "legal-nlp", "version": "0.1.0"}
+    return {
+        "ok": True,
+        "service": "legal-nlp",
+        "version": "0.2.0",
+        "presidio": _presidio_available(),
+        "ocr": _ocr_available(),
+    }
+
+
+# --------------------------------------------------------------------------
+# PII detection — Microsoft Presidio when available, regex fallbacks always.
+# --------------------------------------------------------------------------
+
+class PiiEntity(BaseModel):
+    entity_type: str
+    text: str = Field(..., max_length=200)
+    confidence: float = Field(..., ge=0, le=1)
+    start: int = Field(..., ge=0)
+    end: int = Field(..., ge=0)
+
+
+class PiiRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=400_000)
+
+
+class PiiResponse(BaseModel):
+    entities: list[PiiEntity]
+    engine: str  # "presidio" | "regex"
+
+
+_OCR_READER: list[Any] = []
+
+
+def _presidio_available() -> bool:
+    try:
+        import presidio_analyzer  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+def _ocr_available() -> bool:
+    try:
+        import pytesseract  # noqa: F401
+        from PIL import Image  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+_VERHOEFF_D = [
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    [1, 2, 3, 4, 0, 6, 7, 8, 9, 5],
+    [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
+    [3, 4, 0, 1, 2, 8, 9, 5, 6, 7],
+    [4, 0, 1, 2, 3, 9, 5, 6, 7, 8],
+    [5, 9, 6, 7, 8, 0, 1, 2, 3, 4],
+    [6, 7, 8, 9, 5, 3, 4, 0, 1, 2],
+    [7, 8, 9, 5, 6, 4, 0, 1, 2, 3],
+    [8, 9, 5, 6, 7, 5, 3, 4, 0, 1],
+    [9, 5, 6, 7, 8, 1, 2, 3, 4, 0],
+]
+_VERHOEFF_P = [
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
+    [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
+    [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
+    [9, 4, 5, 3, 1, 2, 6, 8, 7, 0],
+    [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
+    [2, 7, 9, 3, 8, 0, 6, 4, 1, 5],
+    [7, 0, 4, 6, 9, 1, 3, 2, 5, 8],
+]
+
+
+def _verhoeff_valid(digits: str) -> bool:
+    c = 0
+    for i, ch in enumerate(reversed(digits)):
+        c = _VERHOEFF_D[c][_VERHOEFF_P[(i + 1) % 8][int(ch)]]
+    return c == 0
+
+
+_LUHN_LOOKUP = (0, 2, 4, 6, 8, 1, 3, 5, 7, 9)
+
+
+def _luhn_valid(digits: str) -> bool:
+    total = 0
+    for i, ch in enumerate(reversed(digits)):
+        d = int(ch)
+        if i % 2 == 1:
+            d = _LUHN_LOOKUP[d]
+        total += d
+    return total % 10 == 0
+
+
+PAN_RE = re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b")
+AADHAAR_RE = re.compile(r"\b\d{4}\s?\d{4}\s?\d{4}\b")
+IFSC_RE = re.compile(r"\b[A-Z]{4}0[A-Z0-9]{6}\b")
+PHONE_IN_RE = re.compile(
+    r"(?:\+91[\s-]?)?\b[6-9]\d{4}[\s-]?\d{5}\b"
+)
+EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+CREDIT_CARD_RE = re.compile(r"\b(?:\d{4}[\s-]?){3}\d{4}\b")
+BANK_ACCOUNT_RE = re.compile(
+    r"(?:a/c|account)\s*(?:no\.?|number)?\s*[:\-]?\s*(\d{9,18})", re.IGNORECASE
+)
+
+
+def _regex_pii(text: str) -> list[PiiEntity]:
+    out: list[PiiEntity] = []
+    seen: set[tuple[str, int]] = set()
+
+    def add(t: str, s: int, e: int, conf: float) -> None:
+        key = (t, s)
+        if key not in seen:
+            out.append(PiiEntity(entity_type=t, text=text[s:e][:200], confidence=conf, start=s, end=e))
+            seen.add(key)
+
+    for m in PAN_RE.finditer(text):
+        add("PAN", m.start(), m.end(), 0.95)
+    for m in AADHAAR_RE.finditer(text):
+        digits = m.group(0).replace(" ", "")
+        conf = 0.97 if _verhoeff_valid(digits) else 0.55
+        add("AADHAAR", m.start(), m.end(), conf)
+    for m in IFSC_RE.finditer(text):
+        add("IFSC", m.start(), m.end(), 0.95)
+    for m in PHONE_IN_RE.finditer(text):
+        add("PHONE_NUMBER", m.start(), m.end(), 0.85)
+    for m in EMAIL_RE.finditer(text):
+        add("EMAIL_ADDRESS", m.start(), m.end(), 0.99)
+    for m in CREDIT_CARD_RE.finditer(text):
+        digits = m.group(0).replace(" ", "").replace("-", "")
+        conf = 0.96 if _luhn_valid(digits) else 0.5
+        add("CREDIT_CARD", m.start(), m.end(), conf)
+    for m in BANK_ACCOUNT_RE.finditer(text):
+        start = m.start(1)
+        add("BANK_ACCOUNT", start, m.end(1), 0.85)
+    return out
+
+
+_presidio_engine: Any = None
+
+
+def _get_presidio() -> Any:
+    """Initialize Presidio once, preferring locally installed spaCy models.
+
+    Returns False when Presidio cannot be used so callers fall back to the
+    regex engine instead of failing or hanging.
+    """
+    global _presidio_engine
+    if _presidio_engine is not None:
+        return _presidio_engine
+    try:
+        import spacy
+
+        model = None
+        for candidate in ("en_core_web_sm", "en_core_web_lg"):
+            try:
+                spacy.load(candidate)
+                model = candidate
+                break
+            except Exception:
+                continue
+        if model is None:
+            _presidio_engine = False
+            return False
+
+        from presidio_analyzer import AnalyzerEngine
+        from presidio_analyzer.nlp_engine import NlpEngineProvider
+
+        engine = NlpEngineProvider(
+            nlp_configuration={
+                "nlp_engine_name": "spacy",
+                "models": [{"lang_code": "en", "model_name": model}],
+            }
+        ).create_engine()
+        _presidio_engine = AnalyzerEngine(nlp_engine=engine, supported_languages=["en"])
+        return _presidio_engine
+    except Exception:
+        _presidio_engine = False
+        return False
+
+
+def _dedupe_overlaps(entities: list[PiiEntity]) -> list[PiiEntity]:
+    """Keep the highest-confidence entity per overlapping span."""
+    ordered = sorted(entities, key=lambda e: (-e.confidence, -(e.end - e.start)))
+    kept: list[PiiEntity] = []
+    taken: list[tuple[int, int]] = []
+    for ent in ordered:
+        if any(not (ent.end <= s or ent.start >= e) for s, e in taken):
+            continue
+        kept.append(ent)
+        taken.append((ent.start, ent.end))
+    return sorted(kept, key=lambda e: e.start)
+
+
+@app.post("/pii", response_model=PiiResponse)
+def pii(req: PiiRequest) -> PiiResponse:
+    text = req.text
+    engine = _get_presidio()
+    if engine is False:
+        return PiiResponse(entities=_regex_pii(text), engine="regex")
+
+    results = engine.analyze(text=text, language="en", return_decision_process=False)
+    out = [
+        PiiEntity(
+            entity_type=r.entity_type,
+            text=text[r.start : r.end][:200],
+            confidence=float(r.score),
+            start=r.start,
+            end=r.end,
+        )
+        for r in results
+    ]
+    # Presidio's pretrained model misses most Indian identifiers — union with
+    # the deterministic recognizers, then drop overlapping low scorers.
+    out.extend(_regex_pii(text))
+    return PiiResponse(entities=_dedupe_overlaps(out), engine="presidio")
+
+
+class OcrRequest(BaseModel):
+    images: list[str] = Field(..., min_length=1, max_length=20)  # base64 PNG/JPEG
+    language: str = Field(default="eng")
+
+
+class OcrResponse(BaseModel):
+    pages: list[str]
+    available: bool
+
+
+@app.post("/ocr", response_model=OcrResponse)
+def ocr(req: OcrRequest) -> OcrResponse:
+    if not _ocr_available():
+        return OcrResponse(pages=[], available=False)
+    import pytesseract
+    from PIL import Image
+
+    pages: list[str] = []
+    for b64 in req.images:
+        try:
+            img = Image.open(io.BytesIO(base64.b64decode(b64)))
+            pages.append(pytesseract.image_to_string(img, lang=req.language))
+        except Exception:
+            pages.append("")
+    return OcrResponse(pages=pages, available=True)
 
 
 @app.post("/analyze", response_model=AnalyzeResponse)

@@ -19,7 +19,7 @@ export const config = {
   aiMode: (env("AI_MODE", "auto") ?? "auto") as "auto" | "mock",
   groq: {
     apiKey: env("GROQ_API_KEY"),
-    model: env("GROQ_MODEL", "llama-3.3-70b-versatile"),
+    model: env("GROQ_MODEL", "openai/gpt-oss-120b"),
     baseUrl: env("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
     timeoutMs: 45_000,
   },

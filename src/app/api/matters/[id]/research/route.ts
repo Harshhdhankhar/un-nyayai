@@ -1,13 +1,29 @@
 import { getCurrentUser } from "@/lib/auth";
 import { safeHandler } from "@/lib/security";
+import { rateLimit, rateLimitKey, clientIp } from "@/lib/security/rate-limit";
 import { getMatter } from "@/lib/matters/service";
 import { search as searchKanoon } from "@/lib/providers/indian-kanoon";
+import {
+  compileResearchIntent,
+  rankAuthorities,
+} from "@/lib/intelligence/research-compiler";
 import { logger } from "@/lib/logger";
 
 async function handler(req: Request, ctx: unknown) {
   const user = await getCurrentUser();
   if (!user) {
     return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const limited = rateLimit(
+    rateLimitKey(clientIp(req), user.id, "matter-research"),
+    30,
+    60_000
+  );
+  if (!limited.ok) {
+    return Response.json({ ok: false, error: "Too many requests. Please wait a moment." }, {
+      status: 429,
+      headers: { "Retry-After": String(limited.retryAfterSeconds ?? 1) },
+    });
   }
   const { id } = await (ctx as { params: Promise<{ id: string }> }).params;
   const matter = await getMatter(id);
@@ -16,29 +32,51 @@ async function handler(req: Request, ctx: unknown) {
   }
 
   const url = new URL(req.url);
-  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 300);
-  if (!q) {
+  const raw = (url.searchParams.get("q") ?? "").trim().slice(0, 300);
+  if (!raw) {
     return Response.json({ ok: false, error: "Missing query." }, { status: 400 });
   }
   const page = Math.max(0, Number(url.searchParams.get("page") ?? "0") || 0);
-  const fromdate = (url.searchParams.get("fromdate") ?? "").slice(0, 10);
-  const todate = (url.searchParams.get("todate") ?? "").slice(0, 10);
-  const sortby = url.searchParams.get("sortby") === "date" ? "date" : undefined;
 
-  const { results, mode } = await searchKanoon(q, {
-    pagenum: page,
-    fromdate: fromdate || undefined,
-    todate: todate || undefined,
-    sortby,
+  // Compile the natural-language ask into a structured, inspectable query
+  // using Matter context (court / jurisdiction) so the user sees WHAT was
+  // searched — and we never send a long question verbatim when a better
+  // structured query can be built.
+  const intent = compileResearchIntent(raw, {
+    court: (matter as { court?: string | null }).court ?? null,
+    jurisdiction: (matter as { jurisdiction?: string | null }).jurisdiction ?? null,
   });
+  const q = intent.compiledQuery || raw;
+
+  const { results, mode, failure } = await searchKanoon(q, {
+    pagenum: page,
+    fromdate: intent.fromDate || undefined,
+    todate: intent.toDate || undefined,
+    sortby: intent.toDate ? "date" : undefined,
+  });
+
+  // Transparent research relevance — a query-fit score, not a strength/win signal.
+  const ranked = rankAuthorities(results, intent);
+
   logger.info("research_search", {
     matterId: id,
-    q,
+    raw,
+    compiled: q,
     mode,
     page,
     count: results.length,
   });
-  return Response.json({ ok: true, results, mode, page, hasMore: results.length >= 10 });
+
+  return Response.json({
+    ok: true,
+    results,
+    ranked,
+    intent,
+    mode,
+    failure: failure ?? null,
+    page,
+    hasMore: results.length >= 10,
+  });
 }
 
 export const GET = safeHandler(handler);

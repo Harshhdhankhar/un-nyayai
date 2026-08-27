@@ -18,6 +18,53 @@ export interface CompletionOptions {
   json?: boolean;
   temperature?: number;
   maxTokens?: number;
+  /** Reasoning effort for reasoning models (e.g. gpt-oss). Lower keeps answers fast. */
+  reasoningEffort?: "low" | "medium" | "high";
+}
+
+const RATE_LIMIT_RETRIES = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * POST to Groq, transparently retrying transient failures (429 rate limits,
+ * 503 overload) with backoff. Free-tier accounts have tight tokens-per-minute
+ * caps, so a single 429 must not fail the request outright.
+ */
+async function fetchCompletion(
+  url: string,
+  body: Record<string, unknown>
+): Promise<Response> {
+  let lastRes: Response | null = null;
+  for (let attempt = 0; attempt <= RATE_LIMIT_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), config.groq.timeoutMs);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.groq.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (res.ok || ![429, 503].includes(res.status)) return res;
+    lastRes = res;
+    const retryAfterHeader = Number(res.headers.get("retry-after"));
+    const waitMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+      ? Math.min(retryAfterHeader * 1000, 20_000)
+      : Math.min(4000 * (attempt + 1), 15_000);
+    logger.warn("groq_rate_limited_retry", { status: res.status, attempt: attempt + 1, waitMs });
+    await sleep(waitMs);
+  }
+  return lastRes!;
 }
 
 /**
@@ -34,23 +81,14 @@ export async function complete(
     throw new AiUnavailableError();
   }
   const url = `${config.groq.baseUrl}/chat/completions`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.groq.timeoutMs);
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.groq.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.groq.model,
-        temperature: options.temperature ?? 0.2,
-        max_tokens: options.maxTokens ?? 2048,
-        response_format: options.json ? { type: "json_object" } : undefined,
-        messages: [{ role: "system", content: system }, ...messages],
-      }),
-      signal: controller.signal,
+    const res = await fetchCompletion(url, {
+      model: config.groq.model,
+      temperature: options.temperature ?? 0.2,
+      max_tokens: options.maxTokens ?? 2048,
+      response_format: options.json ? { type: "json_object" } : undefined,
+      reasoning_effort: options.reasoningEffort ?? "low",
+      messages: [{ role: "system", content: system }, ...messages],
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -63,8 +101,12 @@ export async function complete(
     const content = data.choices?.[0]?.message?.content;
     if (!content) throw new Error("Empty Groq response.");
     return content;
-  } finally {
-    clearTimeout(timeout);
+  } catch (err) {
+    if (err instanceof AiUnavailableError) throw err;
+    logger.error("groq_complete_error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
 }
 
@@ -78,27 +120,20 @@ export function streamComplete(
     throw new AiUnavailableError();
   }
   const url = `${config.groq.baseUrl}/chat/completions`;
-  const controller = new AbortController();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(streamController) {
       const encoder = new TextEncoder();
-      const timeout = setTimeout(() => controller.abort(), config.groq.timeoutMs + 30_000);
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${config.groq.apiKey}`,
-          },
-          body: JSON.stringify({
-            model: config.groq.model,
-            stream: true,
-            temperature: options.temperature ?? 0.2,
-            max_tokens: options.maxTokens ?? 2048,
-            messages: [{ role: "system", content: system }, ...messages],
-          }),
-          signal: controller.signal,
+        // Retries happen BEFORE any bytes are streamed to the client, so a
+        // rate-limited first attempt never produces a partial answer.
+        const res = await fetchCompletion(url, {
+          model: config.groq.model,
+          stream: true,
+          temperature: options.temperature ?? 0.2,
+          max_tokens: options.maxTokens ?? 2048,
+          reasoning_effort: options.reasoningEffort ?? "low",
+          messages: [{ role: "system", content: system }, ...messages],
         });
         if (!res.ok || !res.body) {
           const body = await res.text().catch(() => "");
@@ -135,16 +170,10 @@ export function streamComplete(
         }
         streamController.close();
       } catch (err) {
-        const aborted = err instanceof Error && err.name === "AbortError";
-        if (!aborted) {
-          streamController.error(err);
-        }
-      } finally {
-        clearTimeout(timeout);
+        // Always propagate (including timeouts/aborts) so consumers can
+        // surface a fallback instead of hanging on a never-ending stream.
+        streamController.error(err);
       }
-    },
-    cancel() {
-      controller.abort();
     },
   });
   return stream;

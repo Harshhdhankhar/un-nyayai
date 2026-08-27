@@ -112,6 +112,7 @@ export const draftKind = pgEnum("draft_kind", [
   "basic_complaint",
   "rent_agreement",
   "employment_representation",
+  "delay_objection",
 ]);
 
 export const draftStatus = pgEnum("draft_status", [
@@ -407,6 +408,8 @@ export const documents = pgTable("documents", {
   storagePath: text("storage_path"),
   status: documentStatus("status").notNull().default("uploaded"),
   extractedText: text("extracted_text"),
+  /** Character offset where each page starts (index i = page i+1). */
+  pageOffsets: jsonb("page_offsets"),
   summary: text("summary"),
   analysis: jsonb("analysis"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -443,6 +446,53 @@ export const documentEntities = pgTable("document_entities", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("document_entities_doc_idx").on(t.documentId),
+]);
+
+/* --------------------- document analysis (analyzer) ---------------------- */
+
+export const analysisStatus = pgEnum("analysis_status", [
+  "queued",
+  "running",
+  "done",
+  "failed",
+]);
+
+/**
+ * One structured analysis per document. `result` holds the full report
+ * (classification, overview, clauses, risks, missing info, PII findings).
+ * Status/progress power the processing UI.
+ */
+export const documentAnalyses = pgTable("document_analyses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  documentId: uuid("document_id")
+    .notNull()
+    .references(() => documents.id, { onDelete: "cascade" }),
+  status: analysisStatus("status").notNull().default("queued"),
+  stage: text("stage"),
+  progress: integer("progress").notNull().default(0),
+  pageCount: integer("page_count"),
+  privacyMode: text("privacy_mode").notNull().default("original"), // original | detected | redacted
+  redactedText: text("redacted_text"),
+  result: jsonb("result"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("document_analyses_doc_idx").on(t.documentId),
+]);
+
+/** Chat history scoped to a single uploaded document ("Ask NyayAI"). */
+export const documentChatMessages = pgTable("document_chat_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  documentId: uuid("document_id")
+    .notNull()
+    .references(() => documents.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // user | assistant
+  content: text("content").notNull(),
+  citations: jsonb("citations"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("document_chat_doc_idx").on(t.documentId),
 ]);
 
 /* ------------------------------- evidence ------------------------------- */
@@ -689,6 +739,53 @@ export const caseOrders = pgTable("case_orders", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("case_orders_record_idx").on(t.caseRecordId),
+]);
+
+/* -------------------- matter intelligence (additive) -------------------- */
+
+/**
+ * Point-in-time capture of a matter's eCourts record. Change Intelligence
+ * diffs the two most recent snapshots to answer "what changed since your last
+ * check?" — deterministically, from stored data (no live call on matter open).
+ */
+export const caseSnapshots = pgTable("case_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  matterId: uuid("matter_id")
+    .notNull()
+    .references(() => matters.id, { onDelete: "cascade" }),
+  cnr: text("cnr").notNull(),
+  mode: text("mode").notNull().default("demo"), // live | demo
+  caseStatus: text("case_status"),
+  stage: text("stage"),
+  nextHearingDate: date("next_hearing_date"),
+  petitioner: text("petitioner"),
+  respondent: text("respondent"),
+  orderCount: integer("order_count"),
+  data: jsonb("data").notNull(), // full ECourtCaseDetail at capture time
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("case_snapshots_matter_idx").on(t.matterId),
+  index("case_snapshots_captured_idx").on(t.matterId, t.capturedAt),
+]);
+
+/**
+ * User-provided inputs for the Cost of Delay estimate. Nothing is assumed —
+ * the estimate is only shown when the user supplies these figures.
+ */
+export const matterCostInputs = pgTable("matter_cost_inputs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  matterId: uuid("matter_id")
+    .notNull()
+    .references(() => matters.id, { onDelete: "cascade" }),
+  dailyIncomeLost: numeric("daily_income_lost", { precision: 12, scale: 2 }),
+  travelCostPerAppearance: numeric("travel_cost_per_appearance", { precision: 12, scale: 2 }),
+  otherCostPerAppearance: numeric("other_cost_per_appearance", { precision: 12, scale: 2 }),
+  currency: text("currency").notNull().default("INR"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("matter_cost_inputs_matter_idx").on(t.matterId),
 ]);
 
 /* ---------------------------- legal navigation -------------------------- */

@@ -79,6 +79,13 @@ export async function embed(text: string): Promise<EmbeddingResult> {
   if (hasEmbeddingApi) {
     try {
       const vector = await embedViaApi(text);
+      // The DB columns are vector(dim). A provider returning a different
+      // dimension would silently corrupt similarity comparability — reject it.
+      if (vector.length !== config.embedding.dim) {
+        throw new Error(
+          `Embedding dimension mismatch: got ${vector.length}, expected ${config.embedding.dim}.`
+        );
+      }
       return { vector, provider: "api" };
     } catch (err) {
       logger.warn("embedding_api_fallback", {

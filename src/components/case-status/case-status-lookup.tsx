@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
 
 export interface CaseTimelineItem {
   date: string;
@@ -50,10 +51,12 @@ export function CaseStatusLookup({
   externalCnr?: string;
   lookupToken?: number;
 }) {
+  const router = useRouter();
   const [cnr, setCnr] = useState("");
   const [looking, setLooking] = useState(false);
   const [result, setResult] = useState<CaseLookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const lastToken = useRef(0);
 
   async function lookup(value?: string) {
@@ -74,6 +77,47 @@ export function CaseStatusLookup({
       setError("Network error while looking up the case.");
     } finally {
       setLooking(false);
+    }
+  }
+
+  async function importAsMatter() {
+    if (!result) return;
+    setImporting(true);
+    setError(null);
+    const record = result.caseData.record;
+    try {
+      const response = await fetch("/api/matters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `${record.petitioner} v. ${record.respondent}`,
+          description: result.summary.humanSummary,
+          matterType: "other",
+          court: record.courtName,
+          cnr: record.cnr,
+          facts: [
+            { fact: `Case status: ${record.caseStatus}`, kind: "extracted" },
+            { fact: `Current stage: ${record.stage}`, kind: "extracted" },
+          ],
+          parties: [
+            { name: record.petitioner, role: "petitioner" },
+            { name: record.respondent, role: "respondent" },
+          ],
+          events: result.caseData.history.map((item) => ({
+            eventDate: item.hearingDate || undefined,
+            title: item.purpose || "Court hearing",
+            description: [item.result, item.orderSummary].filter(Boolean).join(" — ") || undefined,
+          })),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not import this case.");
+      router.push(`/app/matters/${data.matter.id}/case`);
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not import this case.");
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -124,6 +168,9 @@ export function CaseStatusLookup({
             <Badge tone={result.caseData.record.caseStatus.toLowerCase().includes("pending") ? "amber" : "navy"}>
               {result.caseData.record.caseStatus}
             </Badge>
+            <Button type="button" size="sm" variant="outline" loading={importing} onClick={importAsMatter} className="ml-auto">
+              Import as Matter
+            </Button>
           </div>
 
           <div className="rounded-md border border-ink-200 bg-white p-4">

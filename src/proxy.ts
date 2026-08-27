@@ -6,11 +6,6 @@ import { securityHeaders } from "@/lib/security";
 // Public paths never require a session.
 const PUBLIC_PREFIXES = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
-function isPublic(pathname: string) {
-  if (pathname === "/") return true;
-  return PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
-}
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -49,8 +44,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
   // Protect /app and the assistant API; skip static assets.
   matcher: [
+    "/",
     "/app/:path*",
-    "/api/assistant",
+    "/api/:path*",
     "/login/:path*",
     "/signup/:path*",
     "/forgot-password/:path*",

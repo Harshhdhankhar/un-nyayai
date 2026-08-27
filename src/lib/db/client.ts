@@ -8,7 +8,6 @@ const connectionString =
   process.env.DATABASE_URL ?? "postgres://localhost:5432/nyayi";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __nyayiDb: ReturnType<typeof createClient> | undefined;
 }
 

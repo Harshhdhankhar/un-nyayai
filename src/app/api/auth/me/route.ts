@@ -1,7 +1,6 @@
-import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
     return Response.json({ ok: false, user: null }, { status: 401 });

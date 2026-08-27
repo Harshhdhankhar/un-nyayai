@@ -33,7 +33,11 @@ export default async function MatterDraftsPage({
 
       {drafts.length === 0 ? (
         <div className="rounded-lg border border-dashed border-ink-200 bg-white py-16 text-center">
-          <p className="text-sm text-ink-500">No drafts yet.</p>
+          <p className="text-sm font-semibold text-navy-950">No drafts yet</p>
+          <p className="mx-auto mt-1.5 max-w-md text-sm leading-6 text-ink-500">
+            Generate a draft from this Matter&apos;s facts — a legal notice, complaint,
+            reply or delay objection — then review and edit it before use.
+          </p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">

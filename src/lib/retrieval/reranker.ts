@@ -100,7 +100,7 @@ export function rerank<T extends { actName?: string; heading?: string; text?: st
 /** Normalize raw scores to a 0..1 relevance range. */
 export function normalizeScores<T>(docs: RankedDoc<T>[]): RankedDoc<T>[] {
   if (docs.length === 0) return docs;
-  const max = docs[0].score;
+  const max = Math.max(...docs.map((d) => d.score));
   if (max === 0) return docs.map((d) => ({ ...d, score: 0 }));
   return docs.map((d) => ({ ...d, score: d.score / max }));
 }

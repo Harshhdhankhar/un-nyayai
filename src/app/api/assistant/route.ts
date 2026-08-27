@@ -2,20 +2,33 @@ import { NextRequest } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { z } from "zod";
 import { runPipeline, buildFallbackAnswer, buildAssistantSystem, isChattyMessage } from "@/lib/ai/orchestrator";
-import { CHAT_SYSTEM, languageInstruction, modeInstruction } from "@/lib/ai/prompts";
+import { CHAT_SYSTEM, languageInstruction, modeInstruction, UNTRUSTED_DATA_RULE, evidencePackBlock } from "@/lib/ai/prompts";
 import { streamComplete } from "@/lib/ai/groq";
 import { canUseAi } from "@/lib/config";
 import { getOrCreateThread, saveMessage, getThreadMessages } from "@/lib/matters/chat";
 import { attachSourceFooter, verifyClaims } from "@/lib/ai/verification";
+import { rateLimit, rateLimitKey, clientIp } from "@/lib/security/rate-limit";
 import { logger } from "@/lib/logger";
+
+const ASSISTANT_LIMIT = 25;
+const ASSISTANT_WINDOW_MS = 60_000;
 
 const assistantSchema = z.object({
   message: z.string().min(1).max(4000),
   threadId: z.string().uuid().optional(),
   matterId: z.string().uuid().optional(),
-  mode: z.enum(["simple", "detailed", "professional"]).default("simple"),
+  mode: z.enum(["simple", "detailed", "professional"]).default("detailed"),
   language: z.enum(["en", "hi", "hinglish"]).default("en"),
   research: z.boolean().default(false),
+  context: z
+    .object({
+      pathname: z.string().optional(),
+      pageType: z.string().optional(),
+      matterId: z.string().optional(),
+      documentId: z.string().optional(),
+      contextSummary: z.string().optional(),
+    })
+    .optional(),
 });
 
 const encoder = new TextEncoder();
@@ -28,11 +41,29 @@ export async function POST(request: NextRequest) {
   const user = await requireApiUser();
   if (!user) return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
+  const limited = rateLimit(
+    rateLimitKey(clientIp(request), user.id, "assistant"),
+    ASSISTANT_LIMIT,
+    ASSISTANT_WINDOW_MS
+  );
+  if (!limited.ok) {
+    return Response.json(
+      { ok: false, error: "Too many requests. Please wait a moment and try again." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(limited.retryAfterSeconds ?? 1),
+          "X-RateLimit-Remaining": String(limited.remaining),
+        },
+      }
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return Response.json({ ok: false, error: "Invalid request." }, { status: 400 });
+    return Response.json({ ok: false, error: "Invalid request payload." }, { status: 400 });
   }
   const parsed = assistantSchema.safeParse(body);
   if (!parsed.success) {
@@ -42,13 +73,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { message, mode, language, research } = parsed.data;
+  const { message, mode, language, research, context } = parsed.data;
   const isChat = isChattyMessage(message);
 
   const thread = await getOrCreateThread({
     userId: user.id,
     threadId: parsed.data.threadId,
-    matterId: parsed.data.matterId,
+    matterId: parsed.data.matterId || context?.matterId,
     title: isChat ? "New conversation" : message.slice(0, 60),
     mode,
     language,
@@ -56,16 +87,18 @@ export async function POST(request: NextRequest) {
 
   await saveMessage({ threadId: thread.id, role: "user", content: message });
 
-  // Conversation memory — load prior turns so the LLM has full context.
+  // Conversation memory — load prior turns so the assistant maintains continuity.
   const history = await getThreadMessages(thread.id);
   const priorTurns = history
     .filter((m) => m.role === "user" || m.role === "assistant")
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-  // Build a compact, recent context window (last ~12 messages).
-  const contextMessages = priorTurns.slice(-12);
+  const contextMessages = priorTurns.slice(-10).map((m) => ({
+    role: m.role,
+    content: m.content.length > 1800 ? `${m.content.slice(0, 1800)}…` : m.content,
+  }));
 
-  // Greetings / small talk: answer warmly without the legal pipeline.
+  // Small-talk greeting path
   if (isChat) {
     const chatSystem = `${CHAT_SYSTEM}\n\n${languageInstruction(language)}\n${modeInstruction(mode)}`;
     const metaPayload = {
@@ -85,7 +118,7 @@ export async function POST(request: NextRequest) {
           })
         );
         if (!canUseAi) {
-          const reply = `**Hi there!** 👋 I'm NyayAI, your legal navigation assistant. I'm not a lawyer, but I can help you understand your situation and your options. What's going on?`;
+          const reply = `✦ **Hello!** I'm NyayAI, your legal navigation assistant. What legal scenario, contract clause, or court matter can I help you explore today?`;
           await saveMessage({ threadId: thread.id, role: "assistant", content: reply, structured: { chat: true } });
           controller.enqueue(sse("delta", { text: reply }));
           controller.enqueue(sse("done", { threadId: thread.id }));
@@ -94,8 +127,8 @@ export async function POST(request: NextRequest) {
         }
         try {
           const aiStream = streamComplete(chatSystem, contextMessages, {
-            temperature: 0.8,
-            maxTokens: 200,
+            temperature: 0.7,
+            maxTokens: 400,
           });
           const reader = aiStream.getReader();
           const decoder = new TextDecoder();
@@ -114,7 +147,7 @@ export async function POST(request: NextRequest) {
           logger.error("assistant_chat_stream_error", {
             error: err instanceof Error ? err.message : String(err),
           });
-          const reply = `**Hi there!** 👋 I'm NyayAI, your legal navigation assistant. I can help you understand your situation and your options — just tell me what happened.`;
+          const reply = `✦ **Hello!** I'm NyayAI. Tell me about your legal situation, notice, or agreement, and I will guide you through the applicable Indian laws.`;
           await saveMessage({ threadId: thread.id, role: "assistant", content: reply, structured: { chat: true } });
           controller.enqueue(sse("delta", { text: reply }));
           controller.enqueue(sse("done", { threadId: thread.id }));
@@ -127,23 +160,34 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Pipeline: triage + retrieval + evidence pack.
+  // Multi-step pipeline: Triage -> Retrieval -> Evidence Pack
+  const priorTurnsForRetrieval = priorTurns.slice(0, -1);
   const pipeline = await runPipeline({
     statement: message,
+    history: priorTurnsForRetrieval,
     language,
     mode,
     research,
     useKanoon: research,
     userId: user.id,
-    matterId: parsed.data.matterId,
+    matterId: parsed.data.matterId || context?.matterId,
   });
 
-  const system = `${buildAssistantSystem(language, mode)}\n\nEvidence pack:\n${pipeline.evidencePack.sources
-    .map(
-      (s, i) =>
-        `[${i + 1}] ${s.title} (${s.type})${s.authority ? `, ${s.authority}` : ""}${s.date ? `, ${s.date}` : ""}\n${s.excerpt ?? ""}`
-    )
-    .join("\n\n") || "No verified sources retrieved."}`;
+  // Inject Context Awareness into System Prompt
+  let contextInstruction = "";
+  if (context?.pageType || context?.pathname) {
+    contextInstruction = `\nUSER CONTEXT:\n- Active Workspace Screen: ${context.pageType ?? "General Workspace"}\n- URL Path: ${context.pathname ?? "/app"}\n${context.contextSummary ? `- Context Detail: ${context.contextSummary}` : ""}\nProvide answers that actively align with this workspace context.`;
+  }
+
+  const system = `${buildAssistantSystem(language, mode)}${contextInstruction}\n\n${UNTRUSTED_DATA_RULE}\n\n${evidencePackBlock(
+    "EVIDENCE PACK",
+    pipeline.evidencePack.sources
+      .map(
+        (s, i) =>
+          `[${i + 1}] ${s.title} (${s.type})${s.authority ? `, ${s.authority}` : ""}${s.date ? `, ${s.date}` : ""}\n${s.excerpt ?? ""}`
+      )
+      .join("\n\n") || "No verified sources retrieved."
+  )}`;
 
   const metaPayload = {
     triage: pipeline.triage,
@@ -151,24 +195,26 @@ export async function POST(request: NextRequest) {
     providerStatus: pipeline.providerStatus,
     route: pipeline.route,
     threadId: thread.id,
+    contextBadge: context?.pageType,
   };
 
   if (!canUseAi) {
-    // Deterministic fallback — structured, sourced, no AI synthesis.
-    const answer = buildFallbackAnswer(pipeline.triage, pipeline.evidencePack, language);
+    const answer = buildFallbackAnswer(pipeline.triage, pipeline.evidencePack);
     const body = [
-      `**${answer.understanding}**`,
+      `### Short Answer`,
+      `${answer.understanding}`,
       "",
       ...(answer.possiblePathways.length > 0
-        ? ["**A few possible paths:**", ...answer.possiblePathways.map((p) => `- ${p}`), ""]
-        : []),
-      ...(answer.missingInformation.length > 0
-        ? [`**To help more, it'd be useful to know:**`, ...answer.missingInformation.map((m) => `- ${m}`), ""]
+        ? ["### What Matters", ...answer.possiblePathways.map((p) => `- ${p}`), ""]
         : []),
       ...(answer.relevantLaw.length > 0
-        ? ["**Relevant law:**", ...answer.relevantLaw.map((r) => `- ${r}`), ""]
+        ? ["### Applicable Law", ...answer.relevantLaw.map((r) => `- **${r}**`), ""]
         : []),
-      `**A small next step:** ${answer.nextAction}`,
+      "### What You Can Do",
+      `1. ${answer.nextAction}`,
+      ...(answer.missingInformation.length > 0
+        ? ["", "### What Could Change the Answer", ...answer.missingInformation.map((m) => `- ${m}`)]
+        : []),
       "",
       `*${answer.verificationNote}*`,
     ].join("\n");
@@ -201,7 +247,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Live streaming path.
+  // Live streaming path with SSE
   let full = "";
   const readable = new ReadableStream({
     async start(controller) {
@@ -213,11 +259,11 @@ export async function POST(request: NextRequest) {
       );
       try {
         controller.enqueue(
-          sse("status", { label: "Understanding your situation…", step: 1 })
+          sse("status", { label: "Reasoning from verified Indian law…", step: 1 })
         );
         const aiStream = streamComplete(system, contextMessages, {
-          temperature: 0.3,
-          maxTokens: 1600,
+          temperature: 0.25,
+          maxTokens: 1800,
         });
         const reader = aiStream.getReader();
         const decoder = new TextDecoder();
@@ -228,17 +274,19 @@ export async function POST(request: NextRequest) {
           full += text;
           controller.enqueue(sse("delta", { text }));
         }
-        // Append sources footer deterministically.
+
+        const verified = verifyClaims(
+          [{ text: full, sourceIds: [] }],
+          pipeline.evidencePack
+        )[0];
+
         const withSources = attachSourceFooter(full, pipeline.evidencePack);
         const fullDiff = withSources.slice(full.length);
         if (fullDiff) {
           full += fullDiff;
           controller.enqueue(sse("delta", { text: fullDiff }));
         }
-        const verified = verifyClaims(
-          [{ text: full, sourceIds: [] }],
-          pipeline.evidencePack
-        )[0];
+
         await saveMessage({
           threadId: thread.id,
           role: "assistant",
@@ -256,11 +304,11 @@ export async function POST(request: NextRequest) {
         });
         controller.enqueue(
           sse("error", {
-            message: "Live AI is unavailable right now. Showing offline guidance instead.",
+            message: "Live AI stream failed. Showing deterministic legal guidance.",
           })
         );
-        const answer = buildFallbackAnswer(pipeline.triage, pipeline.evidencePack, language);
-        const fallbackBody = `**${answer.understanding}**\n\n**Next step:** ${answer.nextAction}\n\n*${answer.verificationNote}*`;
+        const answer = buildFallbackAnswer(pipeline.triage, pipeline.evidencePack);
+        const fallbackBody = `### Short Answer\n${answer.understanding}\n\n### What You Can Do\n1. ${answer.nextAction}\n\n*${answer.verificationNote}*`;
         controller.enqueue(sse("delta", { text: fallbackBody }));
         await saveMessage({
           threadId: thread.id,

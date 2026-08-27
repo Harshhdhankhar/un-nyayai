@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { users, profiles } from "@/lib/db/schema";
 import { hashPassword, verifyPassword } from "@/lib/security";

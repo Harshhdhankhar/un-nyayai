@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { createDemoUser } from "@/lib/auth/service";
 import { createSessionToken, setSessionCookie } from "@/lib/auth/session";
 import { rateLimit, rateLimitKey, clientIp } from "@/lib/security/rate-limit";
-import { createMatter } from "@/lib/matters/service";
+import { addTask, createMatter, updateMatter } from "@/lib/matters/service";
+import { attachBestRoute } from "@/lib/legal/routes";
 
 /**
  * One-click demo login for the hackathon. Creates a disposable demo user and
@@ -47,14 +48,23 @@ export async function POST(request: NextRequest) {
     ],
   });
 
-  await import("@/lib/matters/service").then((m) =>
-    m.addTask({
+  const matchedRoute = await attachBestRoute(
+    matter.id,
+    "property",
+    "security_deposit",
+    matter.description ?? undefined
+  );
+  const firstStep = matchedRoute?.steps[0];
+  if (firstStep) {
+    await updateMatter(demo.id, matter.id, { nextAction: firstStep.title });
+  }
+
+  await addTask({
       matterId: matter.id,
       title: "Send a written demand for the deposit",
       description: "A formal written demand is usually the first practical step before any legal route.",
       dueDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-    })
-  );
+    });
 
   return Response.json({
     ok: true,

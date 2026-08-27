@@ -16,10 +16,7 @@ import { sanitizeText } from "@/lib/security";
  * Never returns a definitive legal conclusion — only a categorization with
  * questions and pathway hints, flagged as such.
  */
-export async function runTriage(
-  input: string,
-  language = "en"
-): Promise<TriageResult> {
+export async function runTriage(input: string): Promise<TriageResult> {
   const text = sanitizeText(input);
   const rule = classifyByKeywords(text);
 

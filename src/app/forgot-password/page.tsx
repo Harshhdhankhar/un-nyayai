@@ -1,36 +1,46 @@
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ForgotPasswordPage() {
   return (
-    <main className="flex min-h-svh items-center justify-center bg-paper px-4 py-12">
-      <div className="w-full max-w-sm">
+    <main className="flex min-h-svh flex-col items-center justify-center bg-[#ffffff] px-6 py-12 select-none">
+      <div className="w-full max-w-[400px]">
         <div className="mb-8 text-center">
-          <span className="text-lg font-semibold tracking-tight text-navy-900">
-            NyayAI
-          </span>
-          <h1 className="mt-6 text-2xl font-semibold tracking-tight text-ink-900">
-            Reset your password
-          </h1>
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Forgot password</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-ink-500">
-              In the local/demo deployment, password reset email is not sent. Contact
-              your administrator to reset your password.
-            </p>
-            <Link
-              href="/login"
-              className="inline-flex h-10 items-center justify-center rounded-md bg-navy-900 px-4 text-sm font-medium text-white hover:bg-navy-800"
+          <Link href="/" className="inline-block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground">
+            <span
+              className="logo group inline-flex select-none items-baseline font-mono tracking-tight text-2xl font-bold"
+              aria-label="unnyayai"
             >
-              Back to sign in
-            </Link>
-          </CardContent>
-        </Card>
+              <span className="logo__struck mr-0.5">
+                un
+                <span className="logo__strike" aria-hidden="true" />
+              </span>
+              <span className="text-[#111418]">nyayai</span>
+              <span className="logo__caret ml-0.5 text-[#111418]" aria-hidden="true">
+                _
+              </span>
+            </span>
+          </Link>
+          <h1 className="mt-6 font-serif text-3xl font-normal tracking-tight text-[#111418]">
+            Reset your password.
+          </h1>
+          <p className="mt-2 text-sm text-[#5a6578]">
+            In demo mode, you can sign in directly without a password reset email.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-border/90 bg-white p-6 sm:p-8 shadow-xs space-y-4 text-center">
+          <p className="text-sm text-[#5a6578] leading-relaxed">
+            Local sessions and demo accounts do not require email verification. You can start instantly using the demo credentials.
+          </p>
+          <Link
+            href="/login"
+            className="w-full h-11 rounded-lg bg-[#111418] text-white text-sm font-medium transition hover:bg-black/90 flex items-center justify-center shadow-xs"
+          >
+            Back to sign in
+          </Link>
+        </div>
       </div>
     </main>
   );
 }
+

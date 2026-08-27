@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea, Label } from "@/components/ui/input";
-import { Loader2, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export interface RightsResult {
   category: string;

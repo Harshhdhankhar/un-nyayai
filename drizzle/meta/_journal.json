@@ -8,6 +8,34 @@
       "when": 1786080326678,
       "tag": "0000_special_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786768994764,
+      "tag": "0001_thin_freak",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787390400000,
+      "tag": "0002_rag_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787671744253,
+      "tag": "0003_cuddly_metal_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787672646311,
+      "tag": "0004_luxuriant_terrax",
+      "breakpoints": true
     }
   ]
 }
