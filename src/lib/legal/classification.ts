@@ -165,6 +165,11 @@ export const CATEGORY_RULES: CategoryRule[] = [
       "business", "company", "partnership", "invoice unpaid", "vendor",
       "supplier", "trademark", "copyright", "breach of contract", "llc",
       "gst", "agreement between companies",
+      // Unambiguous B2B signals. Deliberately excludes "nda" and
+      // "non-compete": a question about whether such a clause binds someone is
+      // usually a legal question, not a commercial-court dispute.
+      "arbitration", "arbitration clause", "purchase order", "supply agreement",
+      "msme",
     ],
     followUpQuestions: [
       "Is this between two businesses or you and a business?",
@@ -200,40 +205,118 @@ export const CATEGORY_RULES: CategoryRule[] = [
 
 const CATEGORY_FALLBACK: LegalCategory = "other";
 
-const ALL_KEYWORDS = CATEGORY_RULES.flatMap((r) =>
-  r.keywords.map((k) => ({ keyword: k, rule: r }))
-);
+/** A classification decision, with the evidence that produced it. */
+export interface CategoryMatch extends CategoryRule {
+  /** Distinct keywords that matched, most specific first. */
+  matchedKeywords: string[];
+  /** Accumulated specificity score for the winning category. */
+  score: number;
+  /**
+   * True when the keyword evidence is decisive — a multi-word legal phrase
+   * matched, or several distinct keywords agreed, and the runner-up category is
+   * clearly behind. Callers use this to decide whether an LLM may overrule the
+   * deterministic verdict.
+   */
+  strong: boolean;
+}
 
-/** Deterministic keyword classifier. */
-export function classifyByKeywords(input: string): CategoryRule {
-  const text = input.toLowerCase();
-  let best: CategoryRule | null = null;
-  let bestScore = 0;
-  for (const { keyword, rule } of ALL_KEYWORDS) {
-    if (text.includes(keyword.toLowerCase())) {
-      let score = 1;
-      if (keyword.length > 8) score += 1; // longer keywords are more specific
-      if (rule.category !== "other") score += 0.5;
-      if (score > bestScore) {
-        bestScore = score;
-        best = rule;
-      }
-    }
-  }
-  return (
-    best ?? {
+/**
+ * Specificity weight for a keyword. Short keywords ("fir", "pay", "tpa") are
+ * ambiguous and must not outweigh a precise multi-word phrase; a single
+ * incidental long word must not decide the category on its own either. This
+ * replaces an earlier "highest single keyword wins" rule under which the word
+ * "registered" in the criminal list classified *any* registered lease question
+ * as a criminal matter.
+ */
+function keywordWeight(keyword: string): number {
+  if (keyword.includes(" ")) return 3;
+  if (keyword.length >= 9) return 2;
+  if (keyword.length >= 5) return 1;
+  return 0.5;
+}
+
+const WORD_CHARS = /[a-z0-9]/i;
+
+/** Escape a keyword for use inside a RegExp. */
+function escapeRe(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Whole-word keyword test with light inflection tolerance, so "lease" matches
+ * "leases" but never "released", and "fir" never matches "confirmed" or
+ * "first". Substring matching was a standing source of misclassification.
+ */
+function matchesKeyword(haystack: string, keyword: string): boolean {
+  const kw = keyword.toLowerCase();
+  const lead = WORD_CHARS.test(kw[0]) ? "\\b" : "";
+  const tail = WORD_CHARS.test(kw[kw.length - 1]) ? "(?:s|es|ed|ing)?\\b" : "";
+  return new RegExp(`${lead}${escapeRe(kw)}${tail}`, "i").test(haystack);
+}
+
+/**
+ * Deterministic keyword classifier. Scores every category by summing the
+ * specificity of all its matching keywords, then returns the leader — so
+ * agreement between several keywords beats one incidental hit.
+ */
+export function classifyByKeywords(input: string): CategoryMatch {
+  const text = input.toLowerCase().replace(/\s+/g, " ");
+
+  const scored = CATEGORY_RULES.map((rule) => {
+    const matchedKeywords = rule.keywords
+      .filter((k) => matchesKeyword(text, k))
+      .sort((a, b) => keywordWeight(b) - keywordWeight(a) || b.length - a.length);
+    const score = matchedKeywords.reduce((n, k) => n + keywordWeight(k), 0);
+    return { rule, matchedKeywords, score };
+  })
+    .filter((c) => c.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  const winner = scored[0];
+  if (!winner) {
+    // No keyword evidence at all. A bare legal question ("is a non-compete
+    // enforceable in India?") is common and deserves research pathways rather
+    // than the grievance-intake questions the categories above assume.
+    const isQuestion =
+      text.trim().endsWith("?") ||
+      /^(is|are|can|does|do|what|which|how|when|whether|should|must)\b/.test(text.trim());
+    return {
       category: CATEGORY_FALLBACK,
-      subCategory: "general",
+      subCategory: isQuestion ? "legal_question" : "general",
       keywords: [],
-      followUpQuestions: [
-        "Can you tell me a little more about what happened?",
-        "When did this happen, and where?",
-        "How much money or value is involved, if any?",
-        "Do you have any documents or evidence with you?",
-      ],
-      pathwayHints: [],
-    }
-  );
+      followUpQuestions: isQuestion
+        ? [
+            "Which state or jurisdiction does this concern?",
+            "Is this about an agreement you have already signed, or one being negotiated?",
+            "Is there a specific clause, notice, or section you want examined?",
+            "Is any deadline or hearing date attached to this?",
+          ]
+        : [
+            "Can you tell me a little more about what happened?",
+            "When did this happen, and where?",
+            "How much money or value is involved, if any?",
+            "Do you have any documents or evidence with you?",
+          ],
+      pathwayHints: isQuestion
+        ? [
+            "Identify the governing statute and the section that applies",
+            "Check how courts have read that section in comparable facts",
+            "Confirm the position with a qualified advocate before relying on it",
+          ]
+        : [],
+      matchedKeywords: [],
+      score: 0,
+      strong: false,
+    };
+  }
+
+  const runnerUp = scored[1]?.score ?? 0;
+  return {
+    ...winner.rule,
+    matchedKeywords: winner.matchedKeywords,
+    score: winner.score,
+    strong: winner.score >= 3 && winner.score - runnerUp >= 1.5,
+  };
 }
 
 export const CATEGORY_LABELS: Record<LegalCategory, string> = {

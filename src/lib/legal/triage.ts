@@ -37,8 +37,12 @@ export async function runTriage(input: string): Promise<TriageResult> {
     emergencyFlag: { isEmergency: false },
   };
 
+  // Triage output is a dozen short fields; reserving 2k completion tokens for
+  // it would eat the per-minute budget the answer itself needs.
   const llm = await completeJSON(triageSchema, TRIAGE_SYSTEM, text, {
     temperature: 0.1,
+    maxTokens: 900,
+    label: "triage",
   });
 
   if (!llm) return fallback;
@@ -58,13 +62,27 @@ export async function runTriage(input: string): Promise<TriageResult> {
       llm.followUpQuestions.length > 0
         ? llm.followUpQuestions.slice(0, 4)
         : fallback.followUpQuestions.slice(0, 4),
-    // keep deterministic category if LLM is unsure
+    /**
+     * Category resolution. The LLM sees nuance keywords cannot, so it wins by
+     * default — but not over a confident keyword verdict. A landlord/lease/TPA
+     * question that the model labels "criminal" must not reach the user as
+     * "a criminal matter, file an FIR", so a strong deterministic match
+     * (several distinct keywords agreeing) requires high LLM confidence to
+     * override, and the pathway hints follow whichever category won.
+     */
     category:
-      llm.confidence >= 0.4 && llm.category !== "other"
+      llm.confidence >= (rule.strong ? 0.75 : 0.4) && llm.category !== "other"
         ? llm.category
         : fallback.category,
     subCategory: llm.subCategory || fallback.subCategory,
   };
+
+  if (merged.category === fallback.category && merged.category !== llm.category) {
+    // Deterministic category won: the LLM's pathways describe a different area
+    // of law, so they would contradict the category we are presenting.
+    merged.possiblePathways = fallback.possiblePathways;
+    merged.subCategory = fallback.subCategory;
+  }
   return merged;
 }
 

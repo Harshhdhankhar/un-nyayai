@@ -22,6 +22,15 @@ export const config = {
     model: env("GROQ_MODEL", "openai/gpt-oss-120b"),
     baseUrl: env("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
     timeoutMs: 45_000,
+    /**
+     * Tokens-per-minute ceiling for the account. Groq counts
+     * `prompt + max_tokens` against this budget *before* generating, and free
+     * tiers sit as low as 8,000 TPM — so an unbounded evidence pack produces a
+     * 429 that no amount of retrying can clear. We keep prompts under a
+     * fraction of the cap because triage and retrieval spend from the same
+     * minute. Raise GROQ_TOKEN_BUDGET on a paid tier for richer context.
+     */
+    tokenBudget: Number(env("GROQ_TOKEN_BUDGET", "4600") ?? "4600"),
   },
 
   // Embeddings (optional; local hashing fallback used when absent)

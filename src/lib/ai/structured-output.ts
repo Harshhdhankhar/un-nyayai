@@ -12,12 +12,20 @@ export async function completeJSON<T>(
   schema: z.ZodType<T>,
   system: string,
   userContent: string,
-  options: { temperature?: number; fallback?: T } = {}
+  options: {
+    temperature?: number;
+    fallback?: T;
+    maxTokens?: number;
+    label?: string;
+  } = {}
 ): Promise<T | null> {
+  const label = options.label ?? "structured";
   try {
     const raw = await complete(system, [{ role: "user", content: userContent }], {
       json: true,
       temperature: options.temperature ?? 0.1,
+      maxTokens: options.maxTokens,
+      label,
     });
     const cleaned = raw
       .replace(/^```json\s*/i, "")
@@ -41,7 +49,7 @@ export async function completeJSON<T>(
           )}. Respond again with valid JSON matching the required schema.`,
         },
       ],
-      { json: true, temperature: 0 }
+      { json: true, temperature: 0, maxTokens: options.maxTokens, label: `${label}_retry` }
     );
     const retryCleaned = retry
       .replace(/^```json\s*/i, "")

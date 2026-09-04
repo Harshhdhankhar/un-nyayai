@@ -1,5 +1,6 @@
 import "server-only";
 import { runTriage, type TriageResult } from "@/lib/legal/triage";
+import { CATEGORY_LABELS } from "@/lib/legal/classification";
 import { hybridRetrieveExpanded, sectionsToEvidencePack } from "@/lib/retrieval/hybrid";
 import { retrieveDocumentChunks, chunksToSources } from "@/lib/retrieval/documents";
 import { retrieveJudgments, judgmentsToSources } from "@/lib/retrieval/judgments";
@@ -229,22 +230,38 @@ function fuseSources(
   }));
 }
 
-/** Deterministic fallback answer used when Groq is unavailable. */
+/**
+ * Deterministic fallback answer used when Groq is unavailable.
+ *
+ * Wording matters here: the category is a routing label produced by keyword
+ * matching, not a finding, and the fallback fires precisely when no model was
+ * able to reason about the facts. So it hedges the label, never presents a
+ * pathway hint as advice, and stays useful for a bare legal question — where
+ * there are no pathway hints at all.
+ */
 export function buildFallbackAnswer(
   triage: TriageResult,
   pack: EvidencePack
 ): ChatResponse {
-  const understanding =
-    triage.summary ||
-    (triage.facts.length > 0
-      ? `We understand this as a ${triage.category} matter: ${triage.facts[0].fact}.`
-      : `We've categorised this as a ${triage.category} matter.`);
+  const label = CATEGORY_LABELS[triage.category] ?? "general legal";
+  const statedFact = triage.facts[0]?.fact?.trim();
+  // triage.facts[0] is the user's own sentence when extraction did not run;
+  // quoting it back adds nothing and reads as if we had understood something.
+  const hasRealSummary = triage.summary.trim().length > 0;
 
-  const relevantLaw = pack.sources.map((s) => s.title);
+  const understanding = hasRealSummary
+    ? triage.summary
+    : `This looks like it falls under **${label}** law, based on the wording of your message${
+        statedFact && triage.facts[0]?.kind !== "statement" ? `: ${statedFact}` : ""
+      }. That is a starting point for where to look, not a conclusion about your rights — the applicable law depends on facts we do not have yet.`;
+
+  const relevantLaw = pack.sources.slice(0, 5).map((s) => s.title);
 
   const nextAction =
     triage.possiblePathways[0] ??
-    "Collect the documents you have and tell us more so we can build a clearer path.";
+    (relevantLaw.length > 0
+      ? `Read the sources listed above against your own facts, then confirm the position with a qualified advocate before acting on it.`
+      : "Share the key documents and dates — the agreement, notice, or messages involved — so the applicable provisions can be identified.");
 
   return {
     understanding,

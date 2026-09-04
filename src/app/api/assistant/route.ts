@@ -3,7 +3,7 @@ import { requireApiUser } from "@/lib/auth";
 import { z } from "zod";
 import { runPipeline, buildFallbackAnswer, buildAssistantSystem, isChattyMessage } from "@/lib/ai/orchestrator";
 import { CHAT_SYSTEM, languageInstruction, modeInstruction, UNTRUSTED_DATA_RULE, evidencePackBlock } from "@/lib/ai/prompts";
-import { streamComplete } from "@/lib/ai/groq";
+import { streamComplete, complete, AiRequestTooLargeError } from "@/lib/ai/groq";
 import { canUseAi } from "@/lib/config";
 import { getOrCreateThread, saveMessage, getThreadMessages } from "@/lib/matters/chat";
 import { attachSourceFooter, verifyClaims } from "@/lib/ai/verification";
@@ -93,9 +93,13 @@ export async function POST(request: NextRequest) {
     .filter((m) => m.role === "user" || m.role === "assistant")
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-  const contextMessages = priorTurns.slice(-10).map((m) => ({
+  // Kept deliberately tight: prompt tokens and reserved completion tokens are
+  // charged against the same per-minute provider budget, and an unbounded
+  // transcript pushed whole requests past it (the request then 429s no matter
+  // how often it is retried). Six turns is enough for continuity.
+  const contextMessages = priorTurns.slice(-4).map((m) => ({
     role: m.role,
-    content: m.content.length > 1800 ? `${m.content.slice(0, 1800)}…` : m.content,
+    content: m.content.length > 800 ? `${m.content.slice(0, 800)}…` : m.content,
   }));
 
   // Small-talk greeting path
@@ -179,15 +183,31 @@ export async function POST(request: NextRequest) {
     contextInstruction = `\nUSER CONTEXT:\n- Active Workspace Screen: ${context.pageType ?? "General Workspace"}\n- URL Path: ${context.pathname ?? "/app"}\n${context.contextSummary ? `- Context Detail: ${context.contextSummary}` : ""}\nProvide answers that actively align with this workspace context.`;
   }
 
-  const system = `${buildAssistantSystem(language, mode)}${contextInstruction}\n\n${UNTRUSTED_DATA_RULE}\n\n${evidencePackBlock(
-    "EVIDENCE PACK",
-    pipeline.evidencePack.sources
-      .map(
-        (s, i) =>
-          `[${i + 1}] ${s.title} (${s.type})${s.authority ? `, ${s.authority}` : ""}${s.date ? `, ${s.date}` : ""}\n${s.excerpt ?? ""}`
-      )
-      .join("\n\n") || "No verified sources retrieved."
-  )}`;
+  /**
+   * Render an evidence pack for the prompt. `limit`/`chars` exist because the
+   * provider charges prompt tokens against a per-minute budget shared with
+   * triage and retrieval: ten 600-character excerpts is enough on its own to
+   * push the request over a free-tier ceiling, which returns a 429 that
+   * retrying cannot clear. Sources are already relevance-ranked, so taking the
+   * head of the list keeps the best evidence.
+   */
+  function packBlock(limit: number, chars: number): string {
+    const body =
+      pipeline.evidencePack.sources
+        .slice(0, limit)
+        .map((s, i) => {
+          const head = `[${i + 1}] ${s.title} (${s.type})${s.authority ? `, ${s.authority}` : ""}${s.date ? `, ${s.date}` : ""}`;
+          const excerpt = (s.excerpt ?? "").replace(/\s+/g, " ").trim();
+          return excerpt ? `${head}\n${excerpt.slice(0, chars)}` : head;
+        })
+        .join("\n\n") || "No verified sources retrieved.";
+    return evidencePackBlock("EVIDENCE PACK", body);
+  }
+
+  const system = `${buildAssistantSystem(language, mode)}${contextInstruction}\n\n${UNTRUSTED_DATA_RULE}\n\n${packBlock(6, 420)}`;
+
+  /** Deliberately small prompt for the non-streaming recovery attempt. */
+  const compactSystem = `${buildAssistantSystem(language, mode)}\n\n${UNTRUSTED_DATA_RULE}\n\n${packBlock(3, 240)}`;
 
   const metaPayload = {
     triage: pipeline.triage,
@@ -198,9 +218,24 @@ export async function POST(request: NextRequest) {
     contextBadge: context?.pageType,
   };
 
-  if (!canUseAi) {
-    const answer = buildFallbackAnswer(pipeline.triage, pipeline.evidencePack);
-    const body = [
+  /**
+   * Persist a message without ever letting a storage failure escape. Used only
+   * on the recovery paths: they run inside the stream's own catch block, so an
+   * exception there would leave the SSE response open and hang the client.
+   */
+  async function safeSave(args: Parameters<typeof saveMessage>[0]): Promise<void> {
+    try {
+      await saveMessage(args);
+    } catch (err) {
+      logger.error("assistant_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /** Full deterministic answer layout, shared by the offline and recovery paths. */
+  function renderFallbackBody(answer: ReturnType<typeof buildFallbackAnswer>): string {
+    return [
       `### Short Answer`,
       `${answer.understanding}`,
       "",
@@ -218,6 +253,11 @@ export async function POST(request: NextRequest) {
       "",
       `*${answer.verificationNote}*`,
     ].join("\n");
+  }
+
+  if (!canUseAi) {
+    const answer = buildFallbackAnswer(pipeline.triage, pipeline.evidencePack);
+    const body = renderFallbackBody(answer);
 
     await saveMessage({
       threadId: thread.id,
@@ -263,7 +303,8 @@ export async function POST(request: NextRequest) {
         );
         const aiStream = streamComplete(system, contextMessages, {
           temperature: 0.25,
-          maxTokens: 1800,
+          maxTokens: 1400,
+          label: "assistant",
         });
         const reader = aiStream.getReader();
         const decoder = new TextDecoder();
@@ -299,24 +340,93 @@ export async function POST(request: NextRequest) {
         controller.enqueue(sse("done", { threadId: thread.id, verification: verified }));
         controller.close();
       } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
         logger.error("assistant_stream_error", {
-          error: err instanceof Error ? err.message : String(err),
+          error: reason,
+          streamedChars: full.length,
+          tooLarge: err instanceof AiRequestTooLargeError,
         });
+
+        // Bytes already reached the client. Restarting would show the user two
+        // different answers to one question, so close out what was delivered.
+        if (full.trim().length > 0) {
+          const partial = `${full}\n\n*The live explanation was cut short. Please re-ask to get the full answer.*`;
+          controller.enqueue(
+            sse("delta", {
+              text: "\n\n*The live explanation was cut short. Please re-ask to get the full answer.*",
+            })
+          );
+          await safeSave({
+            threadId: thread.id,
+            role: "assistant",
+            content: partial,
+            structured: { understanding: pipeline.triage.summary },
+            sources: pipeline.evidencePack.sources,
+            verification: { status: "interpretation" },
+          });
+          controller.enqueue(sse("done", { threadId: thread.id }));
+          controller.close();
+          return;
+        }
+
+        // Tier 2 — retry without streaming, on a much smaller prompt. Streaming
+        // failures here are dominated by prompt size against the provider's
+        // per-minute token budget, so a compact request usually succeeds where
+        // the full one cannot, and the user still gets a real AI answer.
+        let recovered = "";
+        try {
+          controller.enqueue(
+            sse("status", { label: "Retrying on a compact evidence set…", step: 2 })
+          );
+          recovered = await complete(
+            compactSystem,
+            [{ role: "user", content: message }],
+            { temperature: 0.25, maxTokens: 1000, label: "assistant_recovery" }
+          );
+        } catch (retryErr) {
+          logger.error("assistant_recovery_failed", {
+            error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+          });
+        }
+
+        if (recovered.trim().length > 0) {
+          const withSources = attachSourceFooter(recovered, pipeline.evidencePack);
+          controller.enqueue(sse("delta", { text: withSources }));
+          await safeSave({
+            threadId: thread.id,
+            role: "assistant",
+            content: withSources,
+            structured: { understanding: pipeline.triage.summary },
+            sources: pipeline.evidencePack.sources,
+            verification: verifyClaims(
+              [{ text: recovered, sourceIds: [] }],
+              pipeline.evidencePack
+            )[0],
+            suggestedActions: pipeline.triage.followUpQuestions.slice(0, 3),
+          });
+          controller.enqueue(sse("done", { threadId: thread.id }));
+          controller.close();
+          return;
+        }
+
+        // Tier 3 — deterministic guidance from retrieved sources only.
         controller.enqueue(
           sse("error", {
-            message: "Live AI stream failed. Showing deterministic legal guidance.",
+            message:
+              "Live AI is unavailable right now. Showing guidance from verified sources instead.",
           })
         );
         const answer = buildFallbackAnswer(pipeline.triage, pipeline.evidencePack);
-        const fallbackBody = `### Short Answer\n${answer.understanding}\n\n### What You Can Do\n1. ${answer.nextAction}\n\n*${answer.verificationNote}*`;
+        const fallbackBody = renderFallbackBody(answer);
         controller.enqueue(sse("delta", { text: fallbackBody }));
-        await saveMessage({
+        await safeSave({
           threadId: thread.id,
           role: "assistant",
           content: fallbackBody,
           structured: answer,
           sources: pipeline.evidencePack.sources,
           verification: { status: "interpretation" },
+          suggestedActions: answer.suggestedActions,
         });
         controller.enqueue(sse("done", { threadId: thread.id }));
         controller.close();
