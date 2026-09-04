@@ -1,0 +1,33 @@
+                    GNU AFFERO GENERAL PUBLIC LICENSE
+                       Version 3, 19 November 2007
+
+ Copyright (C) 2026 Harsh Dhankhar <https://github.com/Harshhdhankhar>
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License as published
+ by the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+
+ You should have received a copy of the GNU Affero General Public License
+ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+ NOTICE: This software was originally created by Harsh Dhankhar.
+ Any public distribution or modification of this software must include
+ proper attribution to the original author and a link to the original
+ repository (https://github.com/Harshhdhankhar/un-nyayai).
+
+ ADDITIONAL ATTRIBUTION REQUIREMENTS:
+ In addition to the requirements of the AGPL-3.0, any use, distribution,
+ or modification of this software MUST include:
+   1. Clear credit to "Harsh Dhankhar" as the original author
+   2. A link to the original repository: https://github.com/Harshhdhankhar/un-nyayai
+   3. A copy of this LICENSE file in any distributed copies
+
+ Failure to comply with these attribution requirements constitutes a
+ license violation and may result in legal action under applicable
+ copyright and license laws.
