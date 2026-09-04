@@ -63,6 +63,8 @@ export const CATEGORY_RULES: CategoryRule[] = [
       "landlord", "tenant", "deposit", "security deposit", "rent", "eviction",
       "property", "builder", "flat", "house", "broker", "agreement to sell",
       "registry", "sale deed", "possession", "plot", "encroachment",
+      "lease", "lessee", "lessor", "evict", "tenancy", "tpa",
+      "transfer of property", "section 106",
     ],
     followUpQuestions: [
       "Is this about rent/tenancy (deposit) or purchase of property?",
@@ -82,7 +84,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
     keywords: [
       "police", "fir", "arrest", "threat", "assault", "cheated", "stolen",
       "harassed", "stalked", "abused", "marital", "dowry", "custody",
-      "bail", "accused", "crime", "registered",
+      "bail", "accused", "crime",
     ],
     followUpQuestions: [
       "Are you a victim, witness, or accused?",
