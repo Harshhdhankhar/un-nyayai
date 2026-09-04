@@ -64,6 +64,12 @@ export default function LoginPage() {
                 <span>100% statutory section grounding</span>
               </div>
             </div>
+
+            <div className="mt-4 p-3 rounded-lg bg-white/60 border border-border/50 font-mono text-[10px] text-foreground/70 space-y-1">
+              <p className="font-semibold text-foreground/80 uppercase tracking-wider">Demo Credentials</p>
+              <p>Email: <span className="text-foreground">demo@nyayi.ai</span></p>
+              <p>Password: <span className="text-foreground">Demo@1234</span></p>
+            </div>
           </div>
 
           {/* Right: Login Form Card */}

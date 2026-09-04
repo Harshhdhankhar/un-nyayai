@@ -146,6 +146,36 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           "Create workspace account"
         )}
       </button>
+
+      {mode === "login" && (
+        <div className="relative my-3">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border/60" />
+          </div>
+          <div className="relative flex justify-center text-[10px]">
+            <span className="bg-white px-2 text-muted-foreground font-mono uppercase tracking-wider">or</span>
+          </div>
+        </div>
+      )}
+
+      {mode === "login" && (
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => {
+            const form = document.querySelector("form") as HTMLFormElement;
+            if (!form) return;
+            const emailInput = form.querySelector<HTMLInputElement>('[name="email"]');
+            const passwordInput = form.querySelector<HTMLInputElement>('[name="password"]');
+            if (emailInput) emailInput.value = "demo@nyayi.ai";
+            if (passwordInput) passwordInput.value = "Demo@1234";
+            form.requestSubmit();
+          }}
+          className="w-full h-10 rounded-lg border border-border bg-white text-foreground text-xs sm:text-sm font-medium transition hover:bg-muted disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+        >
+          Try Demo Account
+        </button>
+      )}
     </form>
   );
 }

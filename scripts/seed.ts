@@ -3,6 +3,8 @@ import { eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { embed } from "@/lib/embedding";
 import {
+  users,
+  profiles,
   statutes,
   sections,
   lawMappings,
@@ -15,6 +17,7 @@ import {
   judgments,
   legalSources,
 } from "@/lib/db/schema";
+import { hashPassword } from "@/lib/security";
 import { logger } from "@/lib/logger";
 
 /* =========================================================================
@@ -596,6 +599,31 @@ async function main() {
     });
   }
   logger.info("legal_sources_seeded", { count: SECTIONS.length });
+
+  // Demo user for quick access
+  const demoEmail = "demo@nyayi.ai";
+  const demoPassword = "Demo@1234";
+  const existingDemo = await db.select().from(users).where(eq(users.email, demoEmail)).limit(1);
+  if (existingDemo.length === 0) {
+    const [demoUser] = await db
+      .insert(users)
+      .values({
+        email: demoEmail,
+        passwordHash: hashPassword(demoPassword),
+        fullName: "Demo User",
+        role: "citizen",
+        isDemo: true,
+        provider: "local",
+      })
+      .returning({ id: users.id });
+    await db.insert(profiles).values({
+      userId: demoUser.id,
+      displayName: "Demo User",
+    });
+    logger.info("demo_user_created", { email: demoEmail });
+  } else {
+    logger.info("demo_user_exists", { email: demoEmail });
+  }
 
   // Embed sections for vector search.
   logger.info("embedding_sections");

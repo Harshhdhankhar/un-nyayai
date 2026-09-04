@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { loginUser, loginSchema } from "@/lib/auth/service";
 import { createSessionToken, setSessionCookie } from "@/lib/auth/session";
 import { rateLimit, rateLimitKey, clientIp } from "@/lib/security/rate-limit";
+import { config } from "@/lib/config";
 
 export async function POST(request: NextRequest) {
   const limited = rateLimit(
@@ -13,6 +14,14 @@ export async function POST(request: NextRequest) {
     return Response.json(
       { ok: false, error: "Too many attempts. Please try again later." },
       { status: 429 }
+    );
+  }
+
+  if (!config.authSecret) {
+    console.error("[auth_login] AUTH_SECRET is not configured on the server.");
+    return Response.json(
+      { ok: false, error: "Server is not configured for sign-in yet. Please try again later." },
+      { status: 503 }
     );
   }
 
@@ -31,16 +40,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await loginUser(parsed.data);
-  if (!result.ok) {
-    return Response.json({ ok: false, error: result.error }, { status: 401 });
+  try {
+    const result = await loginUser(parsed.data);
+    if (!result.ok) {
+      return Response.json({ ok: false, error: result.error }, { status: 401 });
+    }
+
+    const token = await createSessionToken(result.user.id);
+    await setSessionCookie(token);
+
+    return Response.json({
+      ok: true,
+      user: { id: result.user.id, email: result.user.email, role: result.user.role },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[auth_login_failed]", {
+      message: msg,
+      code: (err as { code?: string }).code,
+      cause: (err as { cause?: { message?: string; code?: string } }).cause,
+    });
+    return Response.json(
+      { ok: false, error: "Could not sign you in. Please try again shortly." },
+      { status: 500 }
+    );
   }
-
-  const token = await createSessionToken(result.user.id);
-  await setSessionCookie(token);
-
-  return Response.json({
-    ok: true,
-    user: { id: result.user.id, email: result.user.email, role: result.user.role },
-  });
 }
