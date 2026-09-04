@@ -14,6 +14,7 @@
     "db:seed": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
