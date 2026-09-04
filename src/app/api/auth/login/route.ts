@@ -55,13 +55,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[auth_login_failed]", {
-      message: msg,
-      code: (err as { code?: string }).code,
-      cause: (err as { cause?: { message?: string; code?: string } }).cause,
-    });
+    const code = (err as { code?: string }).code;
+    const causeMsg = (err as { cause?: { message?: string } })?.cause?.message;
+    console.error("[auth_login_failed]", { message: msg, code, causeMsg });
+    const detail = causeMsg ?? msg;
     return Response.json(
-      { ok: false, error: "Could not sign you in. Please try again shortly." },
+      { ok: false, error: `Could not sign you in. ${detail}` },
       { status: 500 }
     );
   }
